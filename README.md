@@ -174,5 +174,5 @@ Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md), the
 
 ## License
 
-[Apache License 2.0](LICENSE). Third-party components are listed in
-[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+Copyright 2026 Mansoor Alakoozai. [Apache License 2.0](LICENSE). Third-party components are listed in
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Privacy: [PRIVACY.md](PRIVACY.md) (IdleStow collects nothing; everything stays on your computer).

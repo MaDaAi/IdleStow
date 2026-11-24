@@ -1,0 +1,71 @@
+id,name,status,severity,evidence,fix,verification
+01,Exposed database credentials,PASS,-,Embedded SQLite in the user profile; no DB server or credentials exist. Pattern scan of all git history: 0 credential hits.,None needed,git log --all -p pattern scan (2026-11-25)
+02,Public .env files,PASS,-,No .env/credential/key files ever committed (git log --all --name-only); nothing is web-hosted.,None needed,git history file-name scan
+03,Hardcoded API keys or secrets,PASS,-,AWS/GitHub/OpenAI/Slack/Google/private-key/password patterns: 0 real hits; 1 false positive is the MVNW_PASSWORD variable reference in the Maven wrapper.,None needed,Redacted pattern scan of working tree and history
+04,Weak or missing authentication,NOT APPLICABLE,-,"IdleStow is a single-user local desktop app with no accounts, servers, network endpoints or browser UI; the OS user account is the boundary.",-,-
+05,Missing server-side authorization,PASS,-,Trusted boundary is core: Authorizer re-reads folder authorization and protections before every mutation; UI cannot mutate files directly (final review grep of app/).,None needed,"AuthorizerTest (18), EngineScenariosTest.revokedRootBlocksMutation"
+06,Cross-user data access,NOT APPLICABLE,-,"IdleStow is a single-user local desktop app with no accounts, servers, network endpoints or browser UI.",-,-
+07,Open database permissions,PASS,-,SQLite file under %LOCALAPPDATA%\IdleStow inherits the per-user profile ACL; the app opens no network ports or listeners.,None needed,Code review (no ServerSocket/HTTP server in product code)
+08,Misconfigured Firebase / Supabase / S3,NOT APPLICABLE,-,No cloud databases or object storage are used.,-,-
+09,Unprotected admin routes,NOT APPLICABLE,-,"IdleStow is a single-user local desktop app with no accounts, servers, network endpoints or browser UI; no admin interface.",-,-
+10,Production debug tools exposed,PASS,-,"Only local CLI flags --smoke-test/--self-test exist; self-test refuses roots, the home folder and non-empty folders and deletes only what it created.",Self-test deletion bug found in final review was fixed,SelfTestSafetyTest (3); packaged run on a non-empty folder left the canary intact
+11,Build logs leaking secrets,PASS,-,"CI workflows use no secrets, print no credentials, permissions: contents: read.",None needed,Review of .github/workflows/*.yml
+12,Verbose production errors,PASS,-,Errors are shown only to the local user who ran the action; there are no remote clients to leak internals to.,None needed,Code review of app dialogs
+13,Secrets in Git history,PASS,-,All 5 commits on all refs scanned without printing values: no secrets found.,None needed,git log --all -p scan
+14,Secrets shipped in frontend JavaScript,PASS,-,"No JavaScript; the shipped desktop image (dist/windows/IdleStow) contains no credentials, keys, .env or databases.",None needed,Inspection of packaged image file list
+15,Client-side-only security checks,PASS,-,"All eligibility/authorization rules are enforced in core (preview re-evaluated at execute, preflight before mutation), not only in the UI.",None needed,"SecurityRegressionTest.stalePreviewIsRejected, EngineScenariosTest"
+16,Missing input validation,PASS,-,IPC messages strictly validated and size-bounded; settings range-validated; GLOB exclusions validated; archive member names validated.,GLOB validation added after unit-test review,pytest 171; SettingsTest (49); PolicyEngineTest (73)
+17,SQL injection,PASS,-,All SQL is parameterized; dynamic ORDER BY comes only from enums; LIKE wildcards escaped.,None needed,SqlLikeAndInjectionTest (12)
+18,NoSQL injection,NOT APPLICABLE,-,No NoSQL store is used.,-,-
+19,Cross-site scripting (XSS),NOT APPLICABLE,-,No web pages or WebView; JavaFX controls render plain text.,-,-
+20,Cross-site request forgery (CSRF),NOT APPLICABLE,-,"IdleStow is a single-user local desktop app with no accounts, servers, network endpoints or browser UI.",-,-
+21,Insecure file uploads,NOT APPLICABLE,-,No uploads; locally processed archives are covered under check 22.,-,-
+22,Path traversal,PASS,-,"Roots canonicalized (toRealPath); link/junction components rejected; archive extraction writes only to a fixed destination with member allow-list (ZIP-slip impossible); exclusive creation, no overwrite.",No-replace renames added after security review,"AuthorizerTest; python test_archive.py (ZIP-slip, absolute, .., symlink members); SecurityRegressionTest.safeMoveNeverOverwrites"
+23,Server-side request forgery (SSRF),NOT APPLICABLE,-,Product code performs no network requests (no HTTP/socket clients found).,-,-
+24,Broken password-reset flows,NOT APPLICABLE,-,No passwords or accounts.,-,-
+25,Weak session management,NOT APPLICABLE,-,No sessions.,-,-
+26,Weak or incorrectly validated JWTs,NOT APPLICABLE,-,No tokens.,-,-
+27,Overly permissive CORS,NOT APPLICABLE,-,No HTTP server.,-,-
+28,Missing rate limits,NOT APPLICABLE,-,No network endpoints; local resource ceilings are covered by check 64.,-,-
+29,Unprotected staging or test environments,NOT APPLICABLE,-,No hosted environments; tests use synthetic data in temporary folders only.,-,-
+30,Default credentials left unchanged,PASS,-,"No accounts, example users or default passwords exist anywhere in the code.",None needed,Repository scan
+31,Webhook signatures not verified,NOT APPLICABLE,-,No webhooks.,-,-
+32,Frontend-only payment checks,NOT APPLICABLE,-,Free software; no payments.,-,-
+33,IDOR / BOLA,NOT APPLICABLE,-,"IdleStow is a single-user local desktop app with no accounts, servers, network endpoints or browser UI.",-,-
+34,APIs trusting user-controlled roles or IDs,NOT APPLICABLE,-,No APIs or roles.,-,-
+35,Sensitive data in logs,PASS,LOW,"Logs never contain file contents; they may contain local file paths, stay in the user profile, rotate (size-limited) and can be cleared in Settings; disclosed in PRIVACY.md.",PRIVACY.md added,Review of logback.xml and logging calls
+36,Sensitive source maps or build artifacts,PASS,-,"Packaged image contains only launchers, app jars, runtime, worker, LICENSE/NOTICE/README; no .db/.log/.pdb/.map/test files; build caches are git-ignored.",None needed,find over dist/windows/IdleStow
+37,Vulnerable or abandoned dependencies,PASS,-,OSV check of all 14 runtime packages: logback-core 1.5.18 had GHSA-25qh-j22f-pwp8 (moderate) and 3 low advisories.,Upgraded logback to 1.5.38 (no known advisories),OSV querybatch before/after; full test suite after upgrade
+38,Malicious or compromised packages,PASS,-,"Dependencies from Maven Central/PyPI with exact versions; bundled Temurin JDK, CPython embeddable, zstandard wheel and Maven distribution verified by SHA-256 against publisher checksums.",Wheel and Maven wrapper hashes added,package-windows.ps1 checksum gates; maven-wrapper.properties distributionSha256Sum
+39,Prompt injection,NOT APPLICABLE,-,The product contains no AI/LLM features.,-,-
+40,AI tools bypassing user permissions,NOT APPLICABLE,-,The product contains no AI/LLM features.,-,-
+41,Excess database privileges,NOT APPLICABLE,-,Single embedded database file used by one local process; no database roles exist.,-,-
+42,Missing audit logs,PASS,-,"Every operation is recorded in optimization_history and operation_journal (action, origin, mode, before/after, verification, outcome) without file contents.",None needed,EngineScenariosTest history assertions
+43,No security monitoring or alerts,NOT APPLICABLE,-,"IdleStow is a single-user local desktop app with no accounts, servers, network endpoints or browser UI; locally, failed jobs and recovery issues raise notifications and block autonomous work.",-,-
+44,No tested backup / restore plan,PASS,-,Recovery manifests outside the DB plus manifests inside each archive; documented emergency procedure.,EmergencyRecoveryTest added: deletes the database and recovers a file with a generic ZIP reader + manifest,EmergencyRecoveryTest; CrashRecoveryTest (13)
+45,Public internal dashboards,NOT APPLICABLE,-,No hosted dashboards.,-,-
+46,Missing security headers,NOT APPLICABLE,-,No HTTP responses are served.,-,-
+47,Unsafe cookie settings,NOT APPLICABLE,-,No cookies.,-,-
+48,Sensitive data unprotected in transit / at rest,PASS,LOW,"No data is transmitted. At rest, the index (paths, metadata) is stored unencrypted in the user profile, protected by OS file permissions; no credentials are stored.",Disclosed in PRIVACY.md,Code review; PRIVACY.md
+49,Poor tenant isolation,NOT APPLICABLE,-,"IdleStow is a single-user local desktop app with no accounts, servers, network endpoints or browser UI.",-,-
+50,Over-trusting AI-generated code,UNKNOWN,MEDIUM,"Two independent code reviews with fixes and 590+ automated tests exist, but a recorded line-by-line maintainer review of core/jobs, the Authorizer and the Windows adapter is not evidenced.",Maintainer should review safety-critical modules before 1.0,-
+51,Mass assignment / over-posting,PASS,-,Settings.with rejects unknown keys and all values are re-validated; IPC ignores unknown params; recovery-record paths validated before deletion.,Record path validation added after security review,SettingsTest; SecurityRegressionTest.tamperedRecoveryRecordIsRefused
+52,Command / OS injection,PASS,-,Only ProcessBuilder argument lists (Python worker); no shell; Windows Run-key command quoting rejects quotes/control characters.,None needed,WindowsPureTest quoting tests; code review
+53,Unsafe deserialization,PASS,-,Jackson parses into maps/JsonNode only (no default typing); Python uses json; no Java serialization; logback deserialization advisories removed by upgrade.,Logback upgrade (see 37),Code review; OSV
+54,Misconfigured OAuth / OIDC / social login,NOT APPLICABLE,-,No login.,-,-
+55,No MFA on privileged accounts,UNKNOWN,MEDIUM,The GitHub account MaDaAi controls the source and releases; 2FA status cannot be verified from here.,Owner: confirm GitHub two-factor authentication is enabled,-
+56,Account enumeration,NOT APPLICABLE,-,No accounts.,-,-
+57,Business-logic abuse,PASS,-,"Approvals are bound to a plan digest, single-use, expiring; autonomy requires a confirmed policy digest; state transitions are journaled.",Approval re-arming removed after security review,CandidateRepositoryTest; SecurityRegressionTest; SettingsAutonomyEngineTest
+58,Race conditions,PASS,-,"Per-file and per-recovery-record locks, single-instance lock, SQLite transactions, identity re-check on the NTFS handle, no-replace renames.",Per-record lock added (was known issue KI-3),Full test suite
+59,Webhook replay / duplicate processing,NOT APPLICABLE,-,No webhooks.,-,-
+60,Overpowered CI/CD credentials,PASS,-,"Workflows declare permissions: contents: read, use no secrets or deploy tokens; packaging only uploads build artifacts.",None needed,Review of workflows
+61,Untrusted build actions or scripts,PASS,-,Only official actions/* are used; build scripts reviewed; no curl-pipe-shell.,None needed,Review of workflows and scripts
+62,Unpinned build dependencies,PASS,-,GitHub Actions were pinned by movable tags and CI tools were unpinned.,Actions pinned to commit SHAs; pytest/ruff/pip-audit pinned; Maven wrapper SHA-256; worker wheel hash,Wrapper re-download passed checksum; grep shows no tag-only uses:
+63,Security checks fail open,PASS,-,"Authorizer, autonomy gate, approval checks and preflight deny on any error; missing worker means no mutation.",None needed,AuthorizerTest; EngineScenariosTest
+64,Missing resource limits,PASS,-,"IPC 1 MiB messages, 16-request queue, sample-size cap, temp-space limit, free-space reserve, batch size, bounded thread pools, watcher overflow → reconciliation.",Temp-space limit enforced after final review,pytest IPC tests; WorkerClientRobustnessTest
+65,AI sensitive-information disclosure,NOT APPLICABLE,-,The product contains no AI/LLM features.,-,-
+66,Unsafe use of AI output,NOT APPLICABLE,-,The product contains no AI/LLM features.,-,-
+67,AI agents have excessive agency,NOT APPLICABLE,-,The product contains no AI agents.,-,-
+68,Sensitive browser storage,NOT APPLICABLE,-,No browser storage; local UI state file holds window geometry only.,-,-
+69,Open redirects,NOT APPLICABLE,-,No URLs or redirects.,-,-
+70,Unsecured GraphQL / WebSocket / realtime endpoints,NOT APPLICABLE,-,No such endpoints.,-,-

@@ -138,7 +138,7 @@ $common = @(
     '--app-version', $Version,
     '--vendor', 'MaDaAi',
     '--description', 'IdleStow - Idle files. Reclaimed space.',
-    '--copyright', 'Copyright 2026 the IdleStow contributors. Apache License 2.0.',
+    '--copyright', 'Copyright 2026 Mansoor Alakoozai. Apache License 2.0.',
     '--icon', $icon
 )
 $imageArgs = @(

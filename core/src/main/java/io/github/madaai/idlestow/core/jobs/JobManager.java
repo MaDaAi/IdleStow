@@ -178,8 +178,8 @@ public final class JobManager implements AutoCloseable {
                 rec.size() == null ? 0 : rec.size());
         Path lockPath = destination != null ? destination : Path.of(rec.originalPath());
         start(jobId, token -> {
-            OpOutcome o = withLock(lockPath, () -> executor.restore(jobId, rec, destination, token,
-                    progressFor(jobId, lockPath, rec.size() == null ? 0 : rec.size())));
+            OpOutcome o = withRecordLock(rec.id(), () -> withLock(lockPath, () -> executor.restore(jobId, rec, destination, token,
+                    progressFor(jobId, lockPath, rec.size() == null ? 0 : rec.size()))));
             boolean ok = o.result() == OpOutcome.Result.SUCCEEDED;
             ctx.jobs().progress(jobId, ok ? 1 : 0, ok ? 0 : 1, o.bytesProcessed());
             JobState st = switch (o.result()) {
@@ -202,8 +202,8 @@ public final class JobManager implements AutoCloseable {
             for (RecoveryRepository.Record r : recs) {
                 waitWhilePaused(jobId, token);
                 if (token.isCancelled()) break;
-                OpOutcome o = withLock(Path.of(r.originalPath()), () -> executor.purgeRetained(jobId, r, token,
-                        progressFor(jobId, Path.of(r.originalPath()), r.size() == null ? 0 : r.size())));
+                OpOutcome o = withRecordLock(r.id(), () -> withLock(Path.of(r.originalPath()), () -> executor.purgeRetained(jobId, r, token,
+                        progressFor(jobId, Path.of(r.originalPath()), r.size() == null ? 0 : r.size()))));
                 if (o.result() == OpOutcome.Result.SUCCEEDED) {
                     done++;
                     bytes += o.savings();
@@ -365,6 +365,17 @@ public final class JobManager implements AutoCloseable {
         JobState st = token.isCancelled() ? JobState.CANCELLED : (failed > 0 && done == 0 ? JobState.FAILED
                 : JobState.COMPLETED);
         ctx.jobs().setState(jobId, st, summary);
+    }
+
+    /** Serializes operations on one recovery record (a restore and a purge of the same record never overlap). */
+    private OpOutcome withRecordLock(long recordId, Supplier<OpOutcome> op) {
+        String key = "recovery-record:" + recordId;
+        if (!lockedPaths.add(key)) return OpOutcome.skipped("Another operation is already working on this recovery record");
+        try {
+            return op.get();
+        } finally {
+            lockedPaths.remove(key);
+        }
     }
 
     private OpOutcome withLock(Path p, Supplier<OpOutcome> op) {
