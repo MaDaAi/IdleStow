@@ -29,6 +29,8 @@ $PyUrl = "https://www.python.org/ftp/python/$PyVersion/$PyZipName"
 # SHA-256 of the official embeddable archive (pinned; verified on every build).
 $PySha256 = (Get-Content -Raw (Join-Path $Root 'packaging\windows\python-embed.sha256')).Trim().Split(' ')[0]
 $ZstdVersion = '0.25.0'
+# SHA-256 of zstandard-0.25.0-cp312-cp312-win_amd64.whl as published on PyPI (verified by pip --require-hashes).
+$ZstdWheelSha256 = 'ffef5a74088f1e09947aecf91011136665152e0b4b359c42be3373897fb39b01'
 
 # The bundled runtime must be redistributable: use a pinned, checksum-verified Eclipse Temurin (OpenJDK,
 # GPLv2 + Classpath Exception) unless IDLESTOW_PACKAGING_JDK points at another OpenJDK build.
@@ -42,7 +44,14 @@ New-Item -ItemType Directory -Force -Path $Cache | Out-Null
 
 
 function Get-PackagingJdk {
-    if ($env:IDLESTOW_PACKAGING_JDK) { return $env:IDLESTOW_PACKAGING_JDK }
+    if ($env:IDLESTOW_PACKAGING_JDK) {
+        # Only OpenJDK builds that may be redistributed are accepted (e.g. not Oracle JDK under NFTC/OTN).
+        $rel = Get-Content (Join-Path $env:IDLESTOW_PACKAGING_JDK 'release') -ErrorAction Stop
+        if (-not ($rel -match 'IMPLEMENTOR="(Eclipse Adoptium|Microsoft|Azul Systems, Inc.|Amazon.com Inc.|Red Hat, Inc.|BellSoft)"')) {
+            throw "IDLESTOW_PACKAGING_JDK is not a known redistributable OpenJDK build: $($env:IDLESTOW_PACKAGING_JDK)"
+        }
+        return $env:IDLESTOW_PACKAGING_JDK
+    }
     $zip = Join-Path $Cache $TemurinName
     $dir = Join-Path $Cache 'temurin-21'
     if (-not (Test-Path (Join-Path $dir 'bin\jpackage.exe'))) {
@@ -105,8 +114,10 @@ $zipName = (Get-ChildItem $PyDir -Filter 'python3*.zip' | Select-Object -First 1
 Set-Content -Encoding ascii -Path $pth.FullName -Value @($zipName, '.', '..\app', 'Lib\site-packages')
 $Site = Join-Path $PyDir 'Lib\site-packages'
 New-Item -ItemType Directory -Force -Path $Site | Out-Null
+$req = Join-Path $Build 'worker-requirements.txt'
+Set-Content -Encoding ascii -Path $req -Value "zstandard==$ZstdVersion --hash=sha256:$ZstdWheelSha256"
 & python -m pip install --disable-pip-version-check --no-deps --only-binary=:all: --platform win_amd64 `
-    --python-version 3.12 --implementation cp --target $Site "zstandard==$ZstdVersion"
+    --python-version 3.12 --implementation cp --target $Site --require-hashes -r $req
 if ($LASTEXITCODE -ne 0) { throw 'Failed to fetch the zstandard wheel' }
 $App = Join-Path $Worker 'app'
 New-Item -ItemType Directory -Force -Path $App | Out-Null
@@ -158,7 +169,8 @@ Compress-Archive -Path $AppImage -DestinationPath $PortableZip
 Write-Host "Portable image: $AppImage"
 Write-Host "Portable zip:   $PortableZip"
 
-$wix = (Get-Command 'wix.exe' -ErrorAction SilentlyContinue) -or (Get-Command 'candle.exe' -ErrorAction SilentlyContinue)
+# jpackage (JDK 21) drives WiX 3.x: candle.exe and light.exe must both be available.
+$wix = (Get-Command 'candle.exe' -ErrorAction SilentlyContinue) -and (Get-Command 'light.exe' -ErrorAction SilentlyContinue)
 if ($wix) {
     & (Join-Path $Jdk 'bin\jpackage.exe') --type msi --dest $Dist --app-image $AppImage `
         --win-menu --win-shortcut --win-per-user-install --win-dir-chooser @common

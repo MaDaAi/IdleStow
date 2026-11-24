@@ -41,15 +41,20 @@ public final class SelfTest {
 
     public static Result run(Path workDir, PlatformServices platform, OptimizationWorker worker) {
         List<String> out = new ArrayList<>();
+        // Validate BEFORE anything is created or cleaned up: the self-test must never delete pre-existing data.
+        Path dir = workDir.toAbsolutePath().normalize();
+        String refusal = refusal(dir);
+        if (refusal != null) {
+            out.add("ERROR: " + refusal);
+            out.add("SELF-TEST FAILED");
+            return new Result(false, out);
+        }
+        boolean createdDir = !Files.exists(dir);
+        Path data = dir.resolve("data");
+        Path root = dir.resolve("files");
         boolean ok = true;
         try {
-            if (Files.exists(workDir)) {
-                try (Stream<Path> s = Files.list(workDir)) {
-                    if (s.findAny().isPresent()) throw new IOException("Self-test directory must be empty: " + workDir);
-                }
-            }
-            Path data = workDir.resolve("data");
-            Path root = workDir.resolve("files");
+            Files.createDirectories(dir);
             Path file = root.resolve("synthetic-notes.txt");
             Files.createDirectories(root);
             StringBuilder sb = new StringBuilder();
@@ -120,10 +125,37 @@ public final class SelfTest {
             out.add("ERROR: " + ex);
             ok = false;
         } finally {
-            deleteTree(workDir);
+            // Only remove what this run created.
+            deleteTree(data);
+            deleteTree(root);
+            if (createdDir) {
+                try {
+                    Files.deleteIfExists(dir); // only succeeds if empty
+                } catch (IOException ignored) {
+                    // leave it
+                }
+            }
         }
         out.add(ok ? "SELF-TEST PASSED" : "SELF-TEST FAILED");
         return new Result(ok, out);
+    }
+
+    /** Returns why {@code dir} must not be used, or null if it is a new or empty, non-system directory. */
+    static String refusal(Path dir) {
+        if (dir.getParent() == null) return "Refusing to use a drive or filesystem root: " + dir;
+        String home = System.getProperty("user.home");
+        if (home != null && dir.equals(Path.of(home).toAbsolutePath().normalize())) {
+            return "Refusing to use the home directory: " + dir;
+        }
+        if (Files.exists(dir)) {
+            if (!Files.isDirectory(dir)) return "Not a directory: " + dir;
+            try (Stream<Path> s = Files.list(dir)) {
+                if (s.findAny().isPresent()) return "Self-test directory must be new or empty (nothing was changed): " + dir;
+            } catch (IOException e) {
+                return "Cannot inspect " + dir + ": " + e.getMessage();
+            }
+        }
+        return null;
     }
 
     private static JobRepository.Job await(IdleStowEngine e, long job) throws Exception {

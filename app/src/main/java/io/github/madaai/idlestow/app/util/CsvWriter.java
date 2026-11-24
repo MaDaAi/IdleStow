@@ -10,6 +10,11 @@ public final class CsvWriter {
 
     public static String field(String value) {
         if (value == null) return "";
+        // Spreadsheet formula injection guard: text starting with = + - @ (or tab/CR) is prefixed with an
+        // apostrophe so it is not evaluated. Plain numbers (including negative savings) are left as numbers.
+        if (!value.isEmpty() && "=+-@\t\r".indexOf(value.charAt(0)) >= 0 && !value.matches("-?\\d+(\\.\\d+)?")) {
+            value = "'" + value;
+        }
         boolean quote = false;
         for (int i = 0; i < value.length(); i++) {
             char c = value.charAt(i);

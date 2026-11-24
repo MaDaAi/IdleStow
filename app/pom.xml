@@ -29,6 +29,18 @@
 
   <build>
     <finalName>idlestow</finalName>
+    <resources>
+      <resource>
+        <directory>src/main/resources</directory>
+      </resource>
+      <!-- Single source of truth for license notices shown in Settings → Advanced. -->
+      <resource>
+        <directory>${project.basedir}/..</directory>
+        <includes>
+          <include>THIRD-PARTY-NOTICES.md</include>
+        </includes>
+      </resource>
+    </resources>
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>

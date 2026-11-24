@@ -61,8 +61,8 @@ Screenshots are not committed yet. To capture your own from synthetic data:
 
 ## Installation (Windows)
 
-1. Download `IdleStow-0.1.0-windows-x64-portable.zip` from the releases page, or build it yourself
-   (see below).
+1. Download `IdleStow-0.1.0-windows-x64-portable.zip` from the GitHub releases page once a release is
+   published, or build it yourself (see below).
 2. Extract it anywhere and run `IdleStow\IdleStow.exe`. Java and Python are bundled, so nothing else
    needs to be installed.
 3. Follow the onboarding wizard. Nothing is selected or modified until you choose folders and approve

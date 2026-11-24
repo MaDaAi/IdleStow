@@ -128,8 +128,14 @@ public final class IdleStowEngine implements AutoCloseable {
         this.history = new HistoryRepository(db, clock);
         this.recovery = new RecoveryRepository(db, clock);
         this.queries = new Queries(db);
-        this.settings = new SettingsStore(db, clock);
-        this.policy = new PolicyEngine(rules, new ProtectedRules(config.platform().protectedLocations(), config.dataDir()));
+        try {
+            this.settings = new SettingsStore(db, clock);
+            this.policy = new PolicyEngine(rules, new ProtectedRules(config.platform().protectedLocations(),
+                    config.dataDir()));
+        } catch (SQLException | RuntimeException e) {
+            db.close(); // do not keep the database file locked when startup fails
+            throw e;
+        }
         this.scanner = new Scanner(config.platform().fileInspector(), items, roots);
         this.analysis = new AnalysisService(db, items, roots, candidates, policy, config.platform().nativeCompression(),
                 config.worker(), clock);
@@ -895,14 +901,20 @@ public final class IdleStowEngine implements AutoCloseable {
     }
 
     /** Pauses all optimization (and background scanning) for {@code d}, or indefinitely when null. */
-    public void pauseAll(Duration d) {
+    private ScheduledFuture<?> autoResume;
+
+    public synchronized void pauseAll(Duration d) {
+        if (autoResume != null) autoResume.cancel(false); // a newer pause replaces an earlier timed one
+        autoResume = null;
         jobManager.setGloballyPaused(true);
         pausedUntilMs = d == null ? Long.MAX_VALUE : config.clock().millis() + d.toMillis();
-        if (d != null) scheduler.schedule(this::resumeAll, d.toMillis(), TimeUnit.MILLISECONDS);
+        if (d != null) autoResume = scheduler.schedule(this::resumeAll, d.toMillis(), TimeUnit.MILLISECONDS);
         fire(Event.STATUS);
     }
 
-    public void resumeAll() {
+    public synchronized void resumeAll() {
+        if (autoResume != null) autoResume.cancel(false);
+        autoResume = null;
         jobManager.setGloballyPaused(false);
         pausedUntilMs = 0;
         fire(Event.STATUS);

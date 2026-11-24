@@ -272,8 +272,10 @@ public final class IdleStowApp extends Application implements AppContext.Lifecyc
     private void seedSample(AppContext c) {
         try {
             String custom = System.getProperty("idlestow.smoke.sampleParent");
-            Path sample = custom == null ? Files.createTempDirectory("idlestow-smoke-files-")
-                    : Files.createTempDirectory(Files.createDirectories(Path.of(custom)), "idlestow-smoke-files-");
+            // Default: next to the data directory (the OS temp dir is under AppData, which IdleStow protects).
+            Path parent = custom != null ? Files.createDirectories(Path.of(custom))
+                    : c.engine().dataDir().toAbsolutePath().getParent();
+            Path sample = Files.createTempDirectory(parent, "idlestow-smoke-files-");
             Path sub = Files.createDirectories(sample.resolve("docs"));
             StringBuilder sb = new StringBuilder();
             while (sb.length() < 200_000) sb.append("IdleStow smoke test line\n");
@@ -282,10 +284,22 @@ public final class IdleStowApp extends Application implements AppContext.Lifecyc
             c.engine().addRoot(sample);
             c.engine().scan(null).get(60, TimeUnit.SECONDS);
             System.out.println("Smoke: indexed sample folder " + sample);
+        } catch (java.io.IOException e) {
+            if (String.valueOf(e.getMessage()).contains("cannot be monitored")) {
+                // the chosen location is protected by design; indexing is then simply not exercised
+                System.out.println("Smoke: sample indexing SKIPPED (" + e.getMessage() + ")");
+            } else {
+                smokeProblem = "sample folder could not be indexed: " + e;
+                System.out.println("Smoke: " + smokeProblem);
+            }
         } catch (Exception e) {
-            System.out.println("Smoke: sample folder not indexed (" + e + ")");
+            smokeProblem = "sample folder could not be indexed: " + e;
+            System.out.println("Smoke: " + smokeProblem);
         }
     }
+
+    /** Set when the smoke test detects a real problem; makes the smoke test fail. */
+    private volatile String smokeProblem;
 
     private void smokeBuild() {
         ctx.setLifecycle(this);
@@ -307,13 +321,22 @@ public final class IdleStowApp extends Application implements AppContext.Lifecyc
                     formats = ctx.engine().worker().supportedFormats().toString();
                 } catch (Exception e) {
                     formats = "unavailable (" + Background.message(e) + ")";
+                    // A packaged build must find its bundled worker.
+                    if (System.getProperty("jpackage.app-path") != null) {
+                        smokeProblem = "the bundled Python worker is unavailable";
+                    }
                 }
                 return "Worker: " + ctx.engine().worker().status() + " formats=" + formats + " ("
                         + ctx.workerNote() + ")";
             }).whenComplete((line, e2) -> {
                 System.out.println(e2 != null ? "Worker: unknown (" + Background.message(e2) + ")" : line);
-                System.out.println("SMOKE OK");
-                smokeFinish(0);
+                if (smokeProblem != null) {
+                    System.out.println("SMOKE FAILED: " + smokeProblem);
+                    smokeFinish(1);
+                } else {
+                    System.out.println("SMOKE OK");
+                    smokeFinish(0);
+                }
             });
         });
     }

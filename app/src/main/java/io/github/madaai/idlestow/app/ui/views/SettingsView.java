@@ -872,7 +872,7 @@ public final class SettingsView extends BaseView {
     }
 
     private static String licenseText() {
-        try (var in = SettingsView.class.getResourceAsStream("/THIRD-PARTY-NOTICES")) {
+        try (var in = SettingsView.class.getResourceAsStream("/THIRD-PARTY-NOTICES.md")) {
             if (in != null) return new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
         } catch (IOException ignored) {
             // fall through to the built-in list
