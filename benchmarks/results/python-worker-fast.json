@@ -1,0 +1,129 @@
+{
+  "idlestow_version": "0.1.0",
+  "python": "3.12.6",
+  "platform": "Windows-11-10.0.26100-SP0",
+  "machine": "AMD64",
+  "cpu_count": 12,
+  "zstandard_available": true,
+  "dataset": {
+    "seed": 1,
+    "files": [
+      "compressible_text",
+      "incompressible_random"
+    ],
+    "size_bytes_each": 67108864,
+    "level": "fast",
+    "repeat": 3
+  },
+  "notes": "Real measurements on this machine; files are freshly written so reads are likely served from the OS cache. Archive creation includes SHA-256 hashing and fsync.",
+  "results": {
+    "compressible_text.txt": {
+      "hash": {
+        "bytes_processed": 67108864,
+        "runs": 3,
+        "seconds_best": 0.043924,
+        "seconds_median": 0.044374,
+        "mib_per_s_best": 1457.06,
+        "mib_per_s_median": 1442.3
+      },
+      "estimate": {
+        "bytes_processed": 4194304,
+        "runs": 3,
+        "seconds_best": 0.326649,
+        "seconds_median": 0.328284,
+        "mib_per_s_best": 12.25,
+        "mib_per_s_median": 12.18
+      },
+      "zip_create": {
+        "bytes_processed": 67108864,
+        "runs": 3,
+        "seconds_best": 0.718646,
+        "seconds_median": 0.729902,
+        "mib_per_s_best": 89.06,
+        "mib_per_s_median": 87.68,
+        "archive_size": 14450109,
+        "ratio": 0.2153
+      },
+      "zip_verify": {
+        "bytes_processed": 67108864,
+        "runs": 3,
+        "seconds_best": 0.251952,
+        "seconds_median": 0.256991,
+        "mib_per_s_best": 254.02,
+        "mib_per_s_median": 249.04
+      },
+      "tar_zst_create": {
+        "bytes_processed": 67108864,
+        "runs": 3,
+        "seconds_best": 0.462298,
+        "seconds_median": 0.47143,
+        "mib_per_s_best": 138.44,
+        "mib_per_s_median": 135.76,
+        "archive_size": 6752758,
+        "ratio": 0.1006
+      },
+      "tar_zst_verify": {
+        "bytes_processed": 67108864,
+        "runs": 3,
+        "seconds_best": 0.191559,
+        "seconds_median": 0.193924,
+        "mib_per_s_best": 334.1,
+        "mib_per_s_median": 330.03
+      }
+    },
+    "incompressible_random.bin": {
+      "hash": {
+        "bytes_processed": 67108864,
+        "runs": 3,
+        "seconds_best": 0.043483,
+        "seconds_median": 0.043717,
+        "mib_per_s_best": 1471.84,
+        "mib_per_s_median": 1463.94
+      },
+      "estimate": {
+        "bytes_processed": 4194304,
+        "runs": 3,
+        "seconds_best": 0.490266,
+        "seconds_median": 0.491647,
+        "mib_per_s_best": 8.16,
+        "mib_per_s_median": 8.14
+      },
+      "zip_create": {
+        "bytes_processed": 67108864,
+        "runs": 3,
+        "seconds_best": 2.151043,
+        "seconds_median": 2.15376,
+        "mib_per_s_best": 29.75,
+        "mib_per_s_median": 29.72,
+        "archive_size": 67129740,
+        "ratio": 1.0003
+      },
+      "zip_verify": {
+        "bytes_processed": 67108864,
+        "runs": 3,
+        "seconds_best": 0.167544,
+        "seconds_median": 0.168618,
+        "mib_per_s_best": 381.99,
+        "mib_per_s_median": 379.56
+      },
+      "tar_zst_create": {
+        "bytes_processed": 67108864,
+        "runs": 3,
+        "seconds_best": 0.421737,
+        "seconds_median": 0.436057,
+        "mib_per_s_best": 151.75,
+        "mib_per_s_median": 146.77,
+        "archive_size": 67111273,
+        "ratio": 1.0
+      },
+      "tar_zst_verify": {
+        "bytes_processed": 67108864,
+        "runs": 3,
+        "seconds_best": 0.208889,
+        "seconds_median": 0.210156,
+        "mib_per_s_best": 306.38,
+        "mib_per_s_median": 304.54
+      }
+    }
+  }
+}

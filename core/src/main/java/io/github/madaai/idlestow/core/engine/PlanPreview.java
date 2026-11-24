@@ -19,8 +19,9 @@ public record PlanPreview(
         boolean changesAccessibility,
         String recoveryNote) {
 
-    public record Item(long itemId, Path path, long size, long estimatedSavings, String activity, String confidence,
-                       String reason) { }
+    /** One file, with the snapshot (size, modification time, identity) the user reviewed. */
+    public record Item(long itemId, Path path, long size, long modifiedMs, String fileKey, long estimatedSavings,
+                       String activity, String confidence, String reason) { }
 
     public boolean empty() {
         return willChange.isEmpty();

@@ -145,10 +145,12 @@ public final class Queries {
      */
     public long currentReclaimed() throws SQLException {
         return db.read(c -> {
-            long nat = Sql.scalarLong(c, "SELECT COALESCE(SUM(MAX(0, ((i.logical_size + COALESCE(v.cluster_size,4096) - 1)"
-                    + " / COALESCE(v.cluster_size,4096)) * COALESCE(v.cluster_size,4096) - i.physical_size)),0)"
-                    + " FROM indexed_items i LEFT JOIN filesystem_volumes v ON v.volume_id=i.volume_id"
-                    + " WHERE i.opt_status='NATIVE_COMPRESSED' AND i.present=1 AND i.physical_exact=1 AND i.physical_size>=0");
+            // grouped by file identity so hard-linked paths are counted once
+            long nat = Sql.scalarLong(c, "SELECT COALESCE(SUM(s),0) FROM (SELECT MAX(MAX(0, ((i.logical_size"
+                    + " + COALESCE(v.cluster_size,4096) - 1) / COALESCE(v.cluster_size,4096)) * COALESCE(v.cluster_size,4096)"
+                    + " - i.physical_size)) s FROM indexed_items i LEFT JOIN filesystem_volumes v ON v.volume_id=i.volume_id"
+                    + " WHERE i.opt_status='NATIVE_COMPRESSED' AND i.present=1 AND i.physical_exact=1 AND i.physical_size>=0"
+                    + " GROUP BY COALESCE(i.file_key, 'p'||i.id))");
             long arch = Sql.scalarLong(c, "SELECT COALESCE(SUM(MAX(0, size - COALESCE(archive_size,0))),0)"
                     + " FROM recovery_records WHERE kind='ARCHIVE_REPLACE' AND status='ORIGINAL_PURGED'");
             return nat + arch;

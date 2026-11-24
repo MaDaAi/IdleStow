@@ -40,7 +40,7 @@
     <mockito.version>5.24.0</mockito.version>
 
     <!-- Tests tagged "native" touch real OS APIs on temporary synthetic files only. -->
-    <surefire.excludedGroups></surefire.excludedGroups>
+    <surefire.excludedGroups>benchmark</surefire.excludedGroups>
   </properties>
 
   <dependencyManagement>
@@ -120,7 +120,8 @@
           <version>3.5.2</version>
           <configuration>
             <excludedGroups>${surefire.excludedGroups}</excludedGroups>
-            <argLine>-Dfile.encoding=UTF-8 -Xshare:auto</argLine>
+            <!-- Test temp dirs live in target/: the OS temp dir is under AppData, which IdleStow protects. -->
+            <argLine>-Dfile.encoding=UTF-8 -Xshare:auto "-Djava.io.tmpdir=${project.build.directory}"</argLine>
             <trimStackTrace>false</trimStackTrace>
           </configuration>
         </plugin>

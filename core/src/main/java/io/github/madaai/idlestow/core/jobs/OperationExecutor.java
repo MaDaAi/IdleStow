@@ -360,7 +360,7 @@ public final class OperationExecutor {
         }
         token.checkpoint();
         try {
-            Files.move(tmp, archive, StandardCopyOption.ATOMIC_MOVE);
+            SafeMove.renameNoReplace(tmp, archive);
         } catch (FileAlreadyExistsException e) {
             deleteOwnTemp(tmp);
             throw new SafeFailure("An archive appeared at " + archive + " — refusing to overwrite it", true);
@@ -379,7 +379,7 @@ public final class OperationExecutor {
         try {
             Files.createDirectories(retained.getParent());
             if (!again.key.equals(currentKey(path))) throw new SafeFailure("The file changed identity");
-            Files.move(path, retained, StandardCopyOption.ATOMIC_MOVE);
+            SafeMove.renameNoReplace(path, retained);
         } catch (SafeFailure | IOException e) {
             // Original still in place; the verified archive remains as a compressed copy.
             String msg = "Could not move the original into recovery storage: " + e.getMessage()
@@ -571,15 +571,33 @@ public final class OperationExecutor {
             requireFreeSpace(dest.getParent(), size, "the restored file");
             journal(opId, "PREFLIGHT_OK", null);
 
+            validateRecordPaths(rec);
             boolean usedRetained = false;
-            if (retained != null && Files.isRegularFile(retained, LinkOption.NOFOLLOW_LINKS)
-                    && Files.size(retained) == size) {
-                OptimizationWorker.HashResult h = ctx.worker().hash(retained, token, progress);
-                if (h.sha256().equals(rec.sha256())) {
+            boolean retainedCopied = false;
+            boolean retainedMismatch = false;
+            if (retained != null && Files.isRegularFile(retained, LinkOption.NOFOLLOW_LINKS)) {
+                OptimizationWorker.HashResult h = Files.size(retained) == size
+                        ? ctx.worker().hash(retained, token, progress) : null;
+                if (h != null && h.sha256().equals(rec.sha256())) {
                     journal(opId, "RETAINED_MOVING", null);
                     ctx.faults().at("RESTORE_BEFORE_MOVE");
-                    moveNoReplace(retained, dest);
+                    try {
+                        SafeMove.renameNoReplace(retained, dest);
+                    } catch (SafeMove.CrossVolumeException e) {
+                        // other volume: copy to a temp sibling of the destination, then rename without replacing
+                        Files.copy(retained, tmp, StandardCopyOption.COPY_ATTRIBUTES);
+                        try (FileChannel ch = FileChannel.open(tmp, StandardOpenOption.WRITE)) {
+                            ch.force(true);
+                        }
+                        placeNoReplace(tmp, dest);
+                        retainedCopied = true;
+                    } catch (FileAlreadyExistsException e) {
+                        throw new SafeFailure("A file appeared at " + dest + " and was not overwritten", true);
+                    }
                     usedRetained = true;
+                } else {
+                    // The retained file is not the recorded original (e.g. edited by the user): never delete it.
+                    retainedMismatch = true;
                 }
             }
             if (!usedRetained) {
@@ -607,7 +625,7 @@ public final class OperationExecutor {
                 if (rec.modifiedMs() != null && rec.modifiedMs() > 0) {
                     Files.setLastModifiedTime(tmp, FileTime.fromMillis(rec.modifiedMs()));
                 }
-                moveNoReplace(tmp, dest);
+                placeNoReplace(tmp, dest);
             }
             journal(opId, "RESTORED_PLACED", Json.write(Json.map("dest", dest.toString(), "fromRetained", usedRetained)));
             ctx.faults().at("RESTORE_AFTER_PLACE");
@@ -620,11 +638,16 @@ public final class OperationExecutor {
 
             // Clean up IdleStow-created artifacts only after the restored file is verified.
             if (archive != null && rec.kind() == RecoveryKind.ARCHIVE_REPLACE) Files.deleteIfExists(archive);
-            if (retained != null && !usedRetained) Files.deleteIfExists(retained);
-            if (retained != null) deleteEmptyRetentionDir(retained.getParent());
+            if (retained != null && retainedCopied) Files.deleteIfExists(retained); // verified identical copy
+            if (retained != null && !retainedMismatch) {
+                Files.deleteIfExists(retained.getParent().resolve("manifest.json"));
+                deleteEmptyRetentionDir(retained.getParent());
+            }
 
             ctx.recovery().setStatus(rec.id(), RecoveryStatus.RESTORED,
-                    "Restored to " + dest + (usedRetained ? " from the retained original" : " from the archive"));
+                    "Restored to " + dest + (usedRetained ? " from the retained original" : " from the archive")
+                            + (retainedMismatch ? ". The retained file at " + retained + " differs from the recorded"
+                            + " original (it may have been edited) and was kept untouched." : ""));
             if (rec.itemId() != null && rec.kind() == RecoveryKind.ARCHIVE_REPLACE) {
                 if (inPlace) ctx.items().markRestored(rec.itemId());
                 else ctx.items().markRemoved(Path.of(rec.originalPath()));
@@ -668,6 +691,8 @@ public final class OperationExecutor {
             if (rec.kind() != RecoveryKind.ARCHIVE_REPLACE || rec.retainedOriginalPath() == null) {
                 throw new SafeFailure("Nothing is retained for this item");
             }
+            validateRecordPaths(rec);
+            requireActiveRootFor(rec);
             Path archive = Path.of(rec.archivePath());
             Path retained = Path.of(rec.retainedOriginalPath());
             if (!Files.isRegularFile(archive, LinkOption.NOFOLLOW_LINKS)) {
@@ -724,6 +749,18 @@ public final class OperationExecutor {
             if (!Files.isRegularFile(original, LinkOption.NOFOLLOW_LINKS)) {
                 return OpOutcome.failed("The original file is missing; the compressed copy is kept because it may be"
                         + " the only copy");
+            }
+            try {
+                validateRecordPaths(rec);
+            } catch (SafeFailure f) {
+                return OpOutcome.failed(f.getMessage());
+            }
+            // The copy may be the only record of an earlier version: delete it only while the original is unchanged.
+            boolean unchanged = rec.size() != null && Files.size(original) == rec.size()
+                    && (rec.modifiedMs() == null || Files.getLastModifiedTime(original).toMillis() == rec.modifiedMs());
+            if (!unchanged) {
+                return OpOutcome.failed("The original changed since the compressed copy was made; the copy is kept"
+                        + " because it is the only copy of the earlier version");
             }
             if (rec.archivePath() != null) Files.deleteIfExists(Path.of(rec.archivePath()));
             ctx.recovery().setStatus(rec.id(), RecoveryStatus.REMOVED, "Compressed copy deleted by user");
@@ -909,20 +946,55 @@ public final class OperationExecutor {
         }
     }
 
-    private static void moveNoReplace(Path from, Path to) throws IOException {
+    /** Destructive recovery-store operations require the folder to still be authorized. */
+    private void requireActiveRootFor(RecoveryRepository.Record rec) throws SafeFailure {
         try {
-            Files.move(from, to, StandardCopyOption.ATOMIC_MOVE);
-        } catch (AtomicMoveNotSupportedException e) {
-            // different volumes: copy, fsync, then remove the source only after the copy is complete
-            Files.copy(from, to, StandardCopyOption.COPY_ATTRIBUTES);
-            try (FileChannel ch = FileChannel.open(to, StandardOpenOption.WRITE)) {
-                ch.force(true);
+            if (rec.rootPath() == null) throw new SafeFailure("The monitored folder of this record is unknown");
+            boolean active = ctx.roots().active().stream()
+                    .anyMatch(r -> PathUtil.key(r.path()).equals(PathUtil.key(Path.of(rec.rootPath()))));
+            if (!active) {
+                throw new SafeFailure("Authorization for " + rec.rootPath() + " was revoked; nothing is deleted there");
             }
-            if (Files.size(to) != Files.size(from)) {
-                Files.deleteIfExists(to);
-                throw new IOException("Copy size mismatch");
+        } catch (SQLException e) {
+            throw new SafeFailure("Cannot verify authorization: " + e.getMessage());
+        }
+    }
+
+    /** Renames an IdleStow temp file into place; never replaces an existing file (the temp is removed on failure). */
+    private static void placeNoReplace(Path tmp, Path dest) throws IOException, SafeFailure {
+        try {
+            SafeMove.renameNoReplace(tmp, dest);
+        } catch (FileAlreadyExistsException e) {
+            deleteOwnTemp(tmp);
+            throw new SafeFailure("A file appeared at " + dest + " and was not overwritten", true);
+        } catch (IOException e) {
+            deleteOwnTemp(tmp);
+            throw e;
+        }
+    }
+
+    /**
+     * Refuses to act on recovery records whose paths are not the ones IdleStow itself creates
+     * (protects against damaged or tampered records pointing deletions at arbitrary files).
+     */
+    static void validateRecordPaths(RecoveryRepository.Record rec) throws SafeFailure {
+        Path original = PathUtil.normalize(Path.of(rec.originalPath()));
+        if (rec.archivePath() != null) {
+            Path a = PathUtil.normalize(Path.of(rec.archivePath()));
+            String an = a.getFileName().toString();
+            boolean nameOk = an.equals(original.getFileName() + ".idlestow.zip")
+                    || an.equals(original.getFileName() + ".idlestow.tar.zst");
+            if (!nameOk || a.getParent() == null || !PathUtil.key(a.getParent()).equals(PathUtil.key(original.getParent()))
+                    || PathUtil.key(a).equals(PathUtil.key(original))) {
+                throw new SafeFailure("The recovery record's archive path is not an IdleStow archive location; refusing");
             }
-            Files.delete(from);
+        }
+        if (rec.retainedOriginalPath() != null) {
+            Path r = PathUtil.normalize(Path.of(rec.retainedOriginalPath()));
+            boolean ok = rec.rootPath() != null
+                    && PathUtil.isWithin(r, Path.of(rec.rootPath()).resolve(RETAINED_DIR).resolve("retained"))
+                    && r.getFileName().toString().equals(original.getFileName().toString());
+            if (!ok) throw new SafeFailure("The recovery record's retained path is not in IdleStow's retention store; refusing");
         }
     }
 

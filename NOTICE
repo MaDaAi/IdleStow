@@ -1,0 +1,7 @@
+IdleStow
+Copyright 2026 the IdleStow contributors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Binary distributions bundle third-party components (a Java runtime, JavaFX, CPython and
+libraries) under their own licenses; see THIRD-PARTY-NOTICES.md.

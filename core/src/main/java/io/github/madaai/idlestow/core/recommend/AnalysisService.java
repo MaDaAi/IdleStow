@@ -295,8 +295,22 @@ public final class AnalysisService {
         });
     }
 
-    /** Explicitly mark confidence (exposed for "I confirm this is inactive" / "this is active" actions). */
-    public static Confidence minAuto(Settings s) {
-        return s.minConfidenceAuto();
+    /**
+     * Fresh assessment of a single file (used immediately before autonomous mutation, so a file that became
+     * active after the last analysis is never optimized automatically).
+     */
+    public ActivityAssessment assess(IndexedItem it, MonitoredRoot root, Settings s) throws SQLException {
+        VolumeInfo vol = root.volumeId() == null ? null : roots.volume(root.volumeId()).orElse(null);
+        VolumeInfo.AccessTracking tracking = vol == null ? VolumeInfo.AccessTracking.UNKNOWN : vol.accessTracking();
+        Protection prot = policy.protection(it.path(), false, it.logicalSize(), it.category(), it.volumeId(), root);
+        EffectivePolicy eff = policy.effective(it.path(), it.extension(), root, s);
+        return classifier.classify(new ActivityClassifier.Input(it, prot, tracking, eff.inactivityDays(), eff.archival(),
+                s.observationDays(), items.latestEvidence(it.id(), "OPENED_VIA_IDLESTOW"),
+                items.latestEvidence(it.id(), "USER_DECLARED_ACTIVE"),
+                items.latestEvidence(it.id(), "USER_CONFIRMED_INACTIVE"), clock.millis()));
+    }
+
+    public PolicyEngine policy() {
+        return policy;
     }
 }

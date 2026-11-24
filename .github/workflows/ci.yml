@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: Python worker (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dev dependencies
+        run: python -m pip install --disable-pip-version-check "zstandard==0.25.0" pytest ruff
+      - name: Lint (ruff)
+        run: python -m ruff check .
+      - name: Unit and IPC tests (pytest)
+        run: python -m pytest -q
+
+  java:
+    name: Java build + tests (${{ matrix.os }})
+    needs: python
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install worker dependency
+        run: python -m pip install --disable-pip-version-check "zstandard==0.25.0"
+      # Native NTFS tests (@Tag native) only run on Windows (they are @EnabledOnOs(WINDOWS));
+      # GUI smoke tests need an interactive desktop and are excluded in CI.
+      - name: Build and test
+        shell: bash
+        run: ./mvnw -B -ntp verify "-Dsurefire.excludedGroups=gui,benchmark"
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-${{ matrix.os }}
+          path: "**/target/surefire-reports/*.xml"
+          if-no-files-found: ignore
+
+  dependency-audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Python dependency audit (pip-audit)
+        run: |
+          python -m pip install --disable-pip-version-check pip-audit
+          printf 'zstandard==0.25.0\n' > /tmp/req.txt
+          pip-audit -r /tmp/req.txt
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Java dependency tree
+        run: ./mvnw -B -ntp -q dependency:tree -DoutputFile=dependency-tree.txt -DappendOutput=true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dependency-tree
+          path: "**/dependency-tree.txt"

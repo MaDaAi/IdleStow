@@ -1,0 +1,43 @@
+name: Bug report
+description: Report a problem with IdleStow
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! **Never attach private files.** Paths can be redacted.
+        If the problem may have caused data loss, also see SECURITY.md / docs/user-guide/recovery.md.
+  - type: input
+    id: version
+    attributes:
+      label: IdleStow version
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and filesystem
+      placeholder: "Windows 11 23H2, NTFS"
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Steps to reproduce, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log lines
+      description: From the IdleStow data folder (Settings → Privacy → Open data folder → logs). Redact personal paths.
+      render: text
+  - type: dropdown
+    id: data
+    attributes:
+      label: Was any file data affected?
+      options: ["No", "Not sure", "Yes"]
+    validations:
+      required: true
