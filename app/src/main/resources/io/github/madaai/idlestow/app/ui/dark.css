@@ -1,0 +1,56 @@
+/* IdleStow dark palette: all colors used by base.css are looked-up colors defined here. */
+.root {
+    -c-bg: #0F172A;
+    -c-sidebar: #111827;
+    -c-surface: #1E293B;
+    -c-surface2: #263449;
+    -c-border: #334155;
+    -c-accent: #60A5FA;
+    -c-accent2: #2DD4BF;
+    -c-text: #F8FAFC;
+    -c-text2: #94A3B8;
+    -c-warning: #F59E0B;
+    -c-error: #EF4444;
+    -c-success: #22C55E;
+    -c-on-accent: #07101F;
+    -c-hover: rgba(148, 163, 184, 0.14);
+    -c-selected: rgba(96, 165, 250, 0.24);
+    -c-selected-inactive: rgba(148, 163, 184, 0.20);
+    -c-warning-bg: rgba(245, 158, 11, 0.14);
+    -c-error-bg: rgba(239, 68, 68, 0.14);
+    -c-success-bg: rgba(34, 197, 94, 0.14);
+    -c-info-bg: rgba(96, 165, 250, 0.14);
+    -c-shadow: rgba(0, 0, 0, 0.45);
+    -c-series0: #60A5FA;
+    -c-series1: #2DD4BF;
+    -c-series2: #A78BFA;
+    -c-series3: #F59E0B;
+    -c-series4: #F472B6;
+    -c-series5: #22C55E;
+    -c-series6: #FB923C;
+    -c-series7: #94A3B8;
+
+    -fx-base: #1E293B;
+    -fx-background: #0F172A;
+    -fx-accent: #60A5FA;
+    -fx-default-button: #3B82F6;
+    -fx-focus-color: #60A5FA;
+    -fx-faint-focus-color: rgba(96, 165, 250, 0.20);
+    -fx-control-inner-background: #1E293B;
+    -fx-control-inner-background-alt: #1A2538;
+    -fx-text-base-color: #F8FAFC;
+    -fx-text-background-color: #F8FAFC;
+    -fx-text-inner-color: #F8FAFC;
+    -fx-selection-bar: rgba(96, 165, 250, 0.35);
+    -fx-selection-bar-non-focused: rgba(148, 163, 184, 0.25);
+    -fx-selection-bar-text: #F8FAFC;
+    -fx-dark-text-color: #F8FAFC;
+    -fx-mid-text-color: #94A3B8;
+    -fx-light-text-color: #F8FAFC;
+    -fx-box-border: #334155;
+    -fx-text-box-border: #334155;
+    -fx-shadow-highlight-color: transparent;
+    -fx-outer-border: #334155;
+    -fx-inner-border: #334155;
+    -fx-color: #1E293B;
+}
