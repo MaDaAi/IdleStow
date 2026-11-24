@@ -1,0 +1,56 @@
+/* IdleStow light palette (same token names as dark.css). */
+.root {
+    -c-bg: #F1F5F9;
+    -c-sidebar: #E5EBF3;
+    -c-surface: #FFFFFF;
+    -c-surface2: #F1F5F9;
+    -c-border: #CBD5E1;
+    -c-accent: #2563EB;
+    -c-accent2: #0D9488;
+    -c-text: #0F172A;
+    -c-text2: #526077;
+    -c-warning: #B45309;
+    -c-error: #DC2626;
+    -c-success: #15803D;
+    -c-on-accent: #FFFFFF;
+    -c-hover: rgba(15, 23, 42, 0.07);
+    -c-selected: rgba(37, 99, 235, 0.16);
+    -c-selected-inactive: rgba(100, 116, 139, 0.18);
+    -c-warning-bg: rgba(180, 83, 9, 0.12);
+    -c-error-bg: rgba(220, 38, 38, 0.10);
+    -c-success-bg: rgba(21, 128, 61, 0.12);
+    -c-info-bg: rgba(37, 99, 235, 0.10);
+    -c-shadow: rgba(15, 23, 42, 0.20);
+    -c-series0: #2563EB;
+    -c-series1: #0D9488;
+    -c-series2: #7C3AED;
+    -c-series3: #D97706;
+    -c-series4: #DB2777;
+    -c-series5: #16A34A;
+    -c-series6: #EA580C;
+    -c-series7: #64748B;
+
+    -fx-base: #FFFFFF;
+    -fx-background: #F1F5F9;
+    -fx-accent: #2563EB;
+    -fx-default-button: #2563EB;
+    -fx-focus-color: #2563EB;
+    -fx-faint-focus-color: rgba(37, 99, 235, 0.18);
+    -fx-control-inner-background: #FFFFFF;
+    -fx-control-inner-background-alt: #F6F8FB;
+    -fx-text-base-color: #0F172A;
+    -fx-text-background-color: #0F172A;
+    -fx-text-inner-color: #0F172A;
+    -fx-selection-bar: rgba(37, 99, 235, 0.30);
+    -fx-selection-bar-non-focused: rgba(100, 116, 139, 0.25);
+    -fx-selection-bar-text: #0F172A;
+    -fx-dark-text-color: #0F172A;
+    -fx-mid-text-color: #526077;
+    -fx-light-text-color: #FFFFFF;
+    -fx-box-border: #CBD5E1;
+    -fx-text-box-border: #CBD5E1;
+    -fx-shadow-highlight-color: transparent;
+    -fx-outer-border: #CBD5E1;
+    -fx-inner-border: #CBD5E1;
+    -fx-color: #FFFFFF;
+}

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>IdleStow</title>
+  <defs>
+    <clipPath id="box-clip">
+      <rect x="44" y="48" width="168" height="160" rx="30" ry="30"/>
+    </clipPath>
+  </defs>
+  <!-- storage box -->
+  <rect x="44" y="48" width="168" height="160" rx="30" ry="30" fill="#60A5FA"/>
+  <!-- idle hint: dimmed lower half of the box -->
+  <rect x="44" y="128" width="168" height="80" fill="#0F172A" fill-opacity="0.22" clip-path="url(#box-clip)"/>
+  <!-- compression chevron pressing into the box -->
+  <path d="M82 92 L128 138 L174 92" fill="none" stroke="#0F172A" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

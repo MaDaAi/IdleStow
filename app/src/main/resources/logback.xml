@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  IdleStow logging. The launcher sets the system property idlestow.logdir before any logger exists.
+  Diagnostic logs never contain file contents; they may contain file paths (see the Privacy page in Settings).
+-->
+<configuration>
+  <property name="LOG_DIR" value="${idlestow.logdir:-${java.io.tmpdir}/idlestow-logs}"/>
+
+  <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>${LOG_DIR}/idlestow.log</file>
+    <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+      <fileNamePattern>${LOG_DIR}/idlestow.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+      <maxFileSize>5MB</maxFileSize>
+      <maxHistory>5</maxHistory>
+      <totalSizeCap>25MB</totalSizeCap>
+    </rollingPolicy>
+    <encoder>
+      <charset>UTF-8</charset>
+      <pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [%thread] %logger{36} - %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <target>System.err</target>
+    <encoder>
+      <charset>UTF-8</charset>
+      <pattern>%d{HH:mm:ss.SSS} %-5level %logger{24} - %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <!-- stderr of the Python worker process -->
+  <logger name="idlestow.worker" level="INFO"/>
+  <!-- raised to DEBUG at runtime by Settings > Advanced > Verbose logging -->
+  <logger name="io.github.madaai.idlestow" level="INFO"/>
+
+  <root level="INFO">
+    <appender-ref ref="FILE"/>
+    <appender-ref ref="CONSOLE"/>
+  </root>
+</configuration>

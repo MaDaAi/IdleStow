@@ -82,13 +82,13 @@ public final class SelfTest {
                     JobRepository.Job j = await(e, job);
                     boolean good = j.state().name().equals("COMPLETED") && sha.equals(sha(file))
                             && platform.nativeCompression().isCompressed(file);
-                    out.add("Native compression: " + j.state() + " — " + j.message() + " → " + (good ? "PASS" : "FAIL"));
+                    out.add("Native compression: " + j.state() + " - " + j.message() + " -> " + (good ? "PASS" : "FAIL"));
                     ok &= good;
                     long dj = e.decompress(List.of(it.id()));
                     JobRepository.Job d = await(e, dj);
                     boolean dgood = d.state().name().equals("COMPLETED") && sha.equals(sha(file))
                             && !platform.nativeCompression().isCompressed(file);
-                    out.add("Native decompression: " + d.state() + " → " + (dgood ? "PASS" : "FAIL"));
+                    out.add("Native decompression: " + d.state() + " -> " + (dgood ? "PASS" : "FAIL"));
                     ok &= dgood;
                 } else {
                     out.add("Native compression: not supported on this volume (" + v.nativeCompressionNote() + ") — SKIPPED");
@@ -101,13 +101,13 @@ public final class SelfTest {
                     JobRepository.Job j = await(e, job);
                     RecoveryRepository.Record rec = e.recoveryRecords().currentForItem(it.id()).orElse(null);
                     boolean archived = j.state().name().equals("COMPLETED") && rec != null && !Files.exists(file);
-                    out.add("Archive replace (" + f.wire() + "): " + j.state() + " → " + (archived ? "PASS" : "FAIL"));
+                    out.add("Archive replace (" + f.wire() + "): " + j.state() + " -> " + (archived ? "PASS" : "FAIL"));
                     ok &= archived;
                     if (rec != null) {
                         long rj = e.restore(rec.id(), null);
                         JobRepository.Job rr = await(e, rj);
                         boolean restored = rr.state().name().equals("RESTORED") && sha.equals(sha(file));
-                        out.add("Restore (" + f.wire() + "): " + rr.state() + " → " + (restored ? "PASS" : "FAIL"));
+                        out.add("Restore (" + f.wire() + "): " + rr.state() + " -> " + (restored ? "PASS" : "FAIL"));
                         ok &= restored;
                     }
                     e.scan(r.id()).get();
