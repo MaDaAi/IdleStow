@@ -59,7 +59,7 @@ jobs:
         run: ./mvnw -B -ntp verify "-Dsurefire.excludedGroups=gui,benchmark"
       - name: Upload test reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: surefire-${{ matrix.os }}
           path: "**/target/surefire-reports/*.xml"
@@ -85,7 +85,7 @@ jobs:
           cache: maven
       - name: Java dependency tree
         run: ./mvnw -B -ntp -q dependency:tree -DoutputFile=dependency-tree.txt -DappendOutput=true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dependency-tree
           path: "**/dependency-tree.txt"

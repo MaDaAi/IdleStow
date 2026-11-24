@@ -36,7 +36,7 @@ jobs:
           $d = Join-Path $env:GITHUB_WORKSPACE 'selftest-tmp'
           & dist/windows/IdleStow/IdleStow-cli.exe --self-test $d
           if ($LASTEXITCODE -ne 0) { throw "self-test failed: $LASTEXITCODE" }
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: IdleStow-windows-portable
           path: dist/*.zip
