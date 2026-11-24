@@ -42,7 +42,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "21"
@@ -78,7 +78,7 @@ jobs:
           python -m pip install --disable-pip-version-check pip-audit
           printf 'zstandard==0.25.0\n' > /tmp/req.txt
           pip-audit -r /tmp/req.txt
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "21"
