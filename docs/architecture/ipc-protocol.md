@@ -15,7 +15,8 @@ deletes anything except partial output that it created during the same request.
   (`MESSAGE_TOO_LARGE`) and the rest of the line is discarded.
 * `stdout` carries protocol messages only. All diagnostics go to `stderr`
   (the host captures stderr into the diagnostic log, bounded).
-* The host starts the worker with `-u -B -s -X utf8` and the environment variables
+* The host starts the worker with `-u -B -X utf8` (plus `-s` for the bundled runtime, whose `._pth` file
+  fixes the import path) and the environment variables
   `PYTHONIOENCODING=utf-8` and `PYTHONPATH=<worker dir>`.
 * Authentication: the pipes are private to the parent process, so no extra token is used.
   The worker runs with the same privileges as the host (never elevated).

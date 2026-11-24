@@ -1,0 +1,135 @@
+# Build and packaging
+
+This guide covers building IdleStow from source, the development scripts, and producing the Windows portable package.
+For tests see [testing](testing.md). For the code layout see the [developer guide](developer-guide.md).
+
+## Prerequisites
+
+| Tool | Needed for | Notes |
+|---|---|---|
+| JDK 21 | Building and running the app | The scripts look for `JAVA_HOME`, then `C:\Program Files\Java\jdk-21` and `C:\Program Files\Eclipse Adoptium\jdk-21`. The Maven wrapper (`mvnw.cmd`, `mvnw`) is included, so you do not need Maven. |
+| Python 3.12 or later on `PATH` | Development worker, fixtures, Python tests | `setup-dev.ps1` creates `python\.venv` with the dev tools. Nothing is installed system-wide. |
+| Git | Cloning | |
+| PowerShell | The `.ps1` scripts | The `.sh` scripts (`build.sh`, `test.sh`, `run.sh`, `generate-fixtures.sh`) are the POSIX counterparts. |
+| Internet access | `package-windows.ps1` only | The script downloads a pinned JDK and CPython the first time. Downloads are cached in `packaging\windows\cache`. |
+| WiX Toolset (optional) | An MSI installer | Not installed on the development machine. The MSI is built only when `wix.exe` or `candle.exe` is on `PATH`. See [decision 0007](../decisions/0007-no-installer-without-wix.md). |
+
+## Scripts
+
+Run these from the repository root in PowerShell.
+
+| Script | What it does | Parameters |
+|---|---|---|
+| `scripts\setup-dev.ps1` | Creates `python\.venv` and installs the Python package in editable mode with the `dev` and `zstd` extras. | none |
+| `scripts\build.ps1` | Runs `mvnw.cmd -B package -DskipTests` for all modules. | none |
+| `scripts\run.ps1` | Starts the desktop app from `app\target\idlestow.jar`. Builds first if the jar is missing. Sets `-Didlestow.python.dir` to the source `python\` folder. | `-DataDir <dir>` (default `target\dev-data`, a throw-away folder), `-ReadOnly` |
+| `scripts\test.ps1` | Runs Ruff, pytest, and `mvnw verify`. | `-NoGui` (skips GUI smoke tests too) |
+| `scripts\generate-fixtures.ps1` | Generates synthetic files with `python -m idlestow.fixtures`. | `-Out <empty folder>` (required), `-Preset mixed` or `benchmark`, `-Files <n>`, `-Seed <n>` |
+| `scripts\package-windows.ps1` | Builds the portable application image and zip. | `-SkipBuild` (reuse the Maven output) |
+
+The `.sh` scripts take the same roles. `run.sh` accepts a data folder as its first argument.
+
+`generate-fixtures` writes synthetic data only. Point it at an empty folder you created for the purpose, never at a real
+folder.
+
+## Packaging the Windows portable app
+
+Run:
+
+```powershell
+./scripts/package-windows.ps1
+```
+
+The script does four things.
+
+1. **Maven build.** Runs `mvnw -q -B package -DskipTests` unless `-SkipBuild` is given. Copies `app\target\idlestow.jar`
+   and `app\target\lib\*.jar` into `packaging\windows\build\input`.
+2. **Python worker.**
+   * Downloads the official embeddable CPython 3.12.10 zip, if it is not cached, and checks its SHA-256 against
+     `packaging\windows\python-embed.sha256`. A mismatch deletes the download and stops the build.
+   * Extracts it to `packaging\windows\build\worker\python`. Writes a `._pth` file that lists the standard library zip,
+     `.`, `..\app` and `Lib\site-packages`.
+   * Installs `zstandard==0.25.0` as a Windows wheel (`win_amd64`, CPython 3.12) into `Lib\site-packages`.
+   * Copies the `python\idlestow` package to `worker\app\idlestow`, removes `__pycache__`, and probes the bundled worker
+     with `python.exe -s` before continuing.
+3. **jpackage.** Downloads the pinned Eclipse Temurin 21.0.13.1+2 JDK zip, checks its SHA-256 (hard-coded in the
+   script), and extracts it to `packaging\windows\cache\temurin-21`. It then runs `jpackage --type app-image` with:
+   * the main jar `idlestow.jar` and main class `io.github.madaai.idlestow.app.Launcher`,
+   * a jlinked runtime with a fixed module list,
+   * `-Dfile.encoding=UTF-8` and `--enable-native-access=ALL-UNNAMED`,
+   * a second launcher `IdleStow-cli` built as a console application.
+
+   `IDLESTOW_PACKAGING_JDK` can point at another OpenJDK build instead of the pinned Temurin.
+   The script then copies `worker\` into the image, and copies `LICENSE`, `NOTICE`, `THIRD-PARTY-NOTICES.md` and `README.md`.
+4. **Archives.** Zips the image to `dist\IdleStow-0.1.0-windows-x64-portable.zip`. If WiX is found, it also builds an MSI
+   with `jpackage --type msi`. Otherwise it prints a warning that the MSI was not built.
+
+### Output
+
+```text
+dist\windows\IdleStow\
+    IdleStow.exe            GUI launcher
+    IdleStow-cli.exe        console launcher (used for --smoke-test and --self-test)
+    app\                    IdleStow jars and the dependency jars
+    runtime\                bundled Java runtime
+    worker\python\          embeddable CPython with zstandard
+    worker\app\idlestow\    the Python worker package
+    LICENSE, NOTICE, THIRD-PARTY-NOTICES.md, README.md
+
+dist\IdleStow-0.1.0-windows-x64-portable.zip
+```
+
+The `IdleStow` folder is the application. The zip contains that folder.
+
+In the recorded build on the development machine, the image was about 164.5 MiB and the zip about 75.6 MiB
+([TEST_RESULTS.md](TEST_RESULTS.md)). Your numbers may differ.
+
+The `dist\` folder, `target\` folders and `packaging\windows\cache\` are generated. Git ignores them.
+
+## Verifying the package
+
+From the repository root:
+
+```powershell
+# Builds every view against a temporary data folder, prints SMOKE OK and exits.
+dist\windows\IdleStow\IdleStow-cli.exe --smoke-test --data-dir C:\IdleStowVerify\data
+
+# End-to-end check on synthetic files, in an EMPTY folder that does not exist yet or is empty.
+dist\windows\IdleStow\IdleStow-cli.exe --self-test C:\IdleStowVerify\selftest
+```
+
+Notes:
+
+* **Do not use a folder under `AppData`** (including `%TEMP%`, which is under `AppData\Local`). IdleStow protects those
+  folders, so the self-test would refuse its own files.
+* The self-test requires an empty folder and deletes that folder afterwards. Do not point it at a folder you want to keep.
+* Both commands exit 0 on success.
+
+The `package-windows.yml` workflow runs both commands on a Windows runner, on manual dispatch and on `v*` tags, and uploads
+the zip. The workflow has not run yet, because the repository is not pushed (see
+[PROJECT_STATE.md](PROJECT_STATE.md)).
+
+## Uninstalling
+
+The portable package has no installer and no uninstall step.
+
+1. If you enabled **Start IdleStow when I sign in**, turn it off in **Settings > Automation** first. That removes the
+   per-user `HKCU\...\Run` entry. Otherwise the entry points at a folder that no longer exists.
+2. Delete the `IdleStow` folder.
+3. Optionally delete `%LOCALAPPDATA%\IdleStow`. This removes the index, history, settings, logs and recovery manifests.
+
+Uninstalling never removes your files, archives or retained originals. Restore archived files from **Recovery** before
+you delete the data folder, since the database is what lists them.
+
+## Developer run
+
+```powershell
+./scripts/setup-dev.ps1        # once: python\.venv
+./scripts/build.ps1            # build all modules
+./scripts/run.ps1              # run with target\dev-data
+./scripts/run.ps1 -DataDir C:\IdleStowDev\data -ReadOnly
+```
+
+In development the worker runs from the source `python\` folder. It starts `python` (on Windows) or `python3`, or the
+executable named by `IDLESTOW_PYTHON`. Set `IDLESTOW_PYTHON` to the venv interpreter
+(`python\.venv\Scripts\python.exe`) if the system Python is not the right one.

@@ -159,6 +159,7 @@ public final class Actions {
             }
         }
         cmd.add("--background");
+        if (ctx.engine().readOnly()) cmd.add("--read-only"); // keep the safety mode the user chose
         if (ctx.args().dataDir() != null) {
             cmd.add("--data-dir");
             cmd.add(ctx.args().dataDir().toString());

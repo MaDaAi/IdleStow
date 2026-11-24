@@ -267,6 +267,10 @@ public final class OperationExecutor {
         if (Files.exists(archive, LinkOption.NOFOLLOW_LINKS)) {
             throw new SafeFailure("An archive already exists at " + archive + " — refusing to overwrite it", true);
         }
+        if (item.logicalSize() > s.maxTempBytes()) {
+            throw new SafeFailure("The temporary archive could need up to " + Sizes.format(item.logicalSize())
+                    + ", more than the configured temporary space limit of " + Sizes.format(s.maxTempBytes()));
+        }
         requireFreeSpace(path.getParent(), item.logicalSize(), "the temporary archive");
         if (replace) {
             if (pf.root == null) throw new SafeFailure("Authorization root unavailable");
