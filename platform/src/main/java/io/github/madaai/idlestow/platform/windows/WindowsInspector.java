@@ -157,7 +157,7 @@ public final class WindowsInspector implements FileInspector {
                     allocated = physical;
                     exact = true;
                 } else {
-                    long cluster = clusterSizeForFile(path);
+                    long cluster = clusterBySerial.computeIfAbsent(info.volumeIdHex(), k -> clusterSizeForFile(path));
                     if (cluster > 0) {
                         allocated = roundUp(physical, cluster);
                         exact = true;
@@ -177,6 +177,10 @@ public final class WindowsInspector implements FileInspector {
                 allocated, exact, compressed, (a & ATTR_ENCRYPTED) != 0, sparse, reparse, cloud,
                 (a & ATTR_OFFLINE) != 0, (a & ATTR_SYSTEM) != 0, info.links(), streams);
     }
+
+    /** Cluster size per volume serial: constant for a mounted volume, so it is looked up once. */
+    private final java.util.concurrent.ConcurrentHashMap<String, Long> clusterBySerial =
+            new java.util.concurrent.ConcurrentHashMap<>();
 
     static long roundUp(long value, long unit) {
         return (value + unit - 1) / unit * unit;

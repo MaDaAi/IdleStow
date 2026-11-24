@@ -213,10 +213,15 @@ public final class IdleStowEngine implements AutoCloseable {
      * double count storage and blur authorization boundaries).
      */
     public MonitoredRoot addRoot(Path folder) throws SQLException, IOException {
-        Path p = PathUtil.normalize(folder);
-        if (!Files.isDirectory(p, LinkOption.NOFOLLOW_LINKS)) throw new IOException("Not a folder: " + p);
-        Optional<String> prot = policy.protectedRules().protectionReason(p, true);
-        if (prot.isPresent()) throw new IOException("This folder cannot be monitored: " + prot.get());
+        Path lexical = PathUtil.normalize(folder);
+        if (!Files.isDirectory(lexical)) throw new IOException("Not a folder: " + lexical);
+        // Canonical long-name path (resolves 8.3 short names, letter case and links) so protections cannot be
+        // bypassed by spelling a protected location differently.
+        Path p = lexical.toRealPath();
+        for (Path candidate : List.of(lexical, p)) {
+            Optional<String> prot = policy.protectedRules().protectionReason(candidate, true);
+            if (prot.isPresent()) throw new IOException("This folder cannot be monitored: " + prot.get());
+        }
         if (PathUtil.isWithin(config.dataDir(), p)) {
             throw new IOException("This folder contains IdleStow's own data directory and cannot be monitored");
         }
@@ -276,8 +281,8 @@ public final class IdleStowEngine implements AutoCloseable {
     // =================================================================================== scanning
 
     /** Queues a read-only scan + analysis of one root (or all active roots when {@code rootId} is null). */
-    public void scan(Long rootId) {
-        scanExecutor.submit(() -> {
+    public java.util.concurrent.Future<?> scan(Long rootId) {
+        return scanExecutor.submit(() -> {
             try {
                 List<MonitoredRoot> list = rootId == null ? roots.active()
                         : roots.byId(rootId).filter(MonitoredRoot::active).map(List::of).orElse(List.of());
@@ -338,8 +343,8 @@ public final class IdleStowEngine implements AutoCloseable {
     }
 
     /** Re-runs classification and recommendations without rescanning (e.g. after a policy change). */
-    public void reanalyze() {
-        scanExecutor.submit(() -> {
+    public java.util.concurrent.Future<?> reanalyze() {
+        return scanExecutor.submit(() -> {
             try {
                 for (MonitoredRoot r : roots.active()) analyze(r, scanToken);
             } catch (SQLException | RuntimeException e) {
@@ -503,7 +508,8 @@ public final class IdleStowEngine implements AutoCloseable {
                         List.of("Not analyzed yet")));
                 String reason = ineligibility(it, a, root, method, viaFolder, s);
                 long e = estimate(it, method);
-                PlanPreview.Item pi = new PlanPreview.Item(it.id(), it.path(), it.logicalSize(), e,
+                PlanPreview.Item pi = new PlanPreview.Item(it.id(), it.path(), it.logicalSize(), it.modifiedMs(),
+                        it.fileKey(), e,
                         a.classification().label(), a.confidence().name(), reason == null ? a.explanation() : reason);
                 if (reason == null) {
                     change.add(pi);
@@ -605,15 +611,34 @@ public final class IdleStowEngine implements AutoCloseable {
         List<PlanItem> planItems = new ArrayList<>();
         long est = 0;
         Set<Long> ok = Set.copyOf(approvedItemIds);
+        List<String> skipped = new ArrayList<>();
         for (PlanPreview.Item pi : preview.willChange()) {
             if (!ok.contains(pi.itemId())) continue;
             IndexedItem it = items.byId(pi.itemId()).orElse(null);
             if (it == null) continue;
+            // The approval covers exactly what was reviewed: a file that changed since then is not included.
+            if (it.logicalSize() != pi.size() || it.modifiedMs() != pi.modifiedMs()
+                    || !java.util.Objects.equals(it.fileKey(), pi.fileKey())) {
+                skipped.add(it.name() + " changed since you reviewed it");
+                continue;
+            }
+            MonitoredRoot root = roots.byId(it.rootId()).orElse(null);
+            ActivityAssessment a = items.classification(it.id()).orElse(new ActivityAssessment(ActivityClass.UNKNOWN,
+                    io.github.madaai.idlestow.core.model.Enums.Confidence.NONE, 0, -1, List.of("Not analyzed")));
+            String why = ineligibility(it, a, root, preview.method(), false, s);
+            if (why != null) {
+                skipped.add(it.name() + ": " + why);
+                continue;
+            }
             selected.add(it);
             planItems.add(new PlanItem(it.id(), it.path().toString(), it.logicalSize(), it.modifiedMs(), it.fileKey()));
             est += pi.estimatedSavings();
         }
-        if (selected.isEmpty()) throw new IOException("Nothing selected to optimize");
+        if (selected.isEmpty()) {
+            throw new IOException(skipped.isEmpty() ? "Nothing selected to optimize"
+                    : "Nothing left to optimize: " + String.join("; ", skipped) + ". Re-open the preview.");
+        }
+        if (!skipped.isEmpty()) LOG.info("Excluded from the approved plan: {}", skipped);
         long planId = candidates.createPlan(preview.method(), origin.name(), s.mode().name(), policy.version(s),
                 planItems, est);
         candidates.approve(planId, Duration.ofHours(24));
@@ -642,9 +667,14 @@ public final class IdleStowEngine implements AutoCloseable {
             PlanPreview p = preview(e.getValue(), e.getKey());
             List<Long> ids = p.willChange().stream().map(PlanPreview.Item::itemId).toList();
             if (ids.isEmpty()) continue;
-            candidates.setStatus(chosen.stream().filter(c -> ids.contains(c.itemId())).map(Candidate::id).toList(),
-                    CandidateStatus.APPROVED, null);
-            jobIds.add(execute(p, ids, Origin.APPROVAL, replaceConfirmed));
+            List<Long> candIds = chosen.stream().filter(c -> ids.contains(c.itemId())).map(Candidate::id).toList();
+            candidates.setStatus(candIds, CandidateStatus.APPROVED, null);
+            try {
+                jobIds.add(execute(p, ids, Origin.APPROVAL, replaceConfirmed));
+            } catch (IOException | SQLException | RuntimeException ex) {
+                candidates.setStatus(candIds, CandidateStatus.PENDING, null);
+                throw ex;
+            }
         }
         fire(Event.ANALYSIS);
         return jobIds;
@@ -691,6 +721,7 @@ public final class IdleStowEngine implements AutoCloseable {
     }
 
     public String deleteCompressedCopy(long recoveryId) throws SQLException {
+        if (config.readOnly()) return "IdleStow is running in read-only mode; nothing was deleted";
         RecoveryRepository.Record r = recovery.byId(recoveryId).orElseThrow();
         var o = jobManager.executor().deleteCopy(0, r);
         fire(Event.RECOVERY);
@@ -822,10 +853,8 @@ public final class IdleStowEngine implements AutoCloseable {
             if (its.isEmpty()) return Optional.empty();
             long planId = candidates.createPlan(Method.NATIVE, Origin.AUTONOMOUS.name(), s.mode().name(),
                     policy.version(s), planItems, p.estimatedSavings());
-            long jobId = jobManager.submitOptimize(its, Method.NATIVE, Origin.AUTONOMOUS, planId, () -> {
-                String g = autonomyGate();
-                return g;
-            });
+            long jobId = jobManager.submitOptimize(its, Method.NATIVE, Origin.AUTONOMOUS, planId,
+                    this::autonomyGate, this::autonomousItemCheck);
             lastAutonomyMessage = "Autonomous optimization started for " + its.size() + " files (estimated "
                     + Sizes.format(p.estimatedSavings()) + ")";
             fire(Event.STATUS);
@@ -834,6 +863,34 @@ public final class IdleStowEngine implements AutoCloseable {
             LOG.error("Autonomous pass failed", e);
             lastAutonomyMessage = "Autonomous optimization failed: " + e.getMessage();
             return Optional.empty();
+        }
+    }
+
+    /**
+     * Re-checks one file immediately before an autonomous mutation: refreshes its metadata from disk and
+     * re-runs the activity rules, so a file used since the last analysis is skipped.
+     */
+    JobManager.ItemCheck autonomousItemCheck(IndexedItem it) {
+        try {
+            MonitoredRoot root = roots.byId(it.rootId()).orElse(null);
+            if (root == null || !root.active() || !root.autonomyEnabled()) {
+                return new JobManager.ItemCheck(null, "autonomy is no longer enabled for this folder");
+            }
+            scanner.scan(root, it.path(), new CancellationToken(), p -> { });
+            IndexedItem fresh = items.byId(it.id()).orElse(null);
+            if (fresh == null || !fresh.present()) return new JobManager.ItemCheck(null, "the file no longer exists");
+            Settings s = settings.get();
+            if (fresh.optStatus() != OptStatus.NONE) return new JobManager.ItemCheck(null, "already processed");
+            if (fresh.logicalSize() < s.minFileSize()) return new JobManager.ItemCheck(null, "below the minimum size");
+            ActivityAssessment a = analysis.assess(fresh, root, s);
+            EffectivePolicy eff = policy.effective(fresh.path(), fresh.extension(), root, s);
+            if (a.classification() != ActivityClass.INACTIVE || !a.confidence().atLeast(eff.minConfidenceAuto())
+                    || eff.neverOptimize()) {
+                return new JobManager.ItemCheck(null, "no longer inactive: " + a.explanation());
+            }
+            return new JobManager.ItemCheck(fresh, null);
+        } catch (SQLException | IOException | RuntimeException e) {
+            return new JobManager.ItemCheck(null, "cannot re-check the file (" + e.getMessage() + ")");
         }
     }
 

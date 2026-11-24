@@ -37,6 +37,10 @@ public final class RulesRepository {
             case "PATH" -> PathUtil.normalize(Path.of(value.trim())).toString();
             case "EXTENSION" -> value.trim().toLowerCase(java.util.Locale.ROOT).replaceFirst("^\\.", "");
             case "MIN_SIZE", "MAX_SIZE" -> Long.toString(Long.parseLong(value.trim()));
+            case "GLOB" -> {
+                java.nio.file.FileSystems.getDefault().getPathMatcher("glob:" + value.trim()); // throws if invalid
+                yield value.trim();
+            }
             default -> value.trim();
         };
         db.tx(c -> Sql.update(c, "INSERT OR IGNORE INTO exclusions(kind, value, created_utc) VALUES(?,?,?)",

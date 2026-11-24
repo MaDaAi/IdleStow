@@ -153,22 +153,55 @@ public final class Database implements AutoCloseable {
         });
     }
 
+    /**
+     * Splits a migration script into statements. Understands single/double-quoted literals (where {@code --}
+     * and {@code ;} are data), {@code --} line comments, and {@code BEGIN ... END} blocks of triggers.
+     */
     static List<String> splitStatements(String sql) {
         List<String> out = new ArrayList<>();
         StringBuilder cur = new StringBuilder();
-        for (String line : sql.split("\n")) {
-            String t = line.strip();
-            if (t.startsWith("--") || t.isEmpty()) continue;
-            int comment = line.indexOf("--");
-            cur.append(comment >= 0 ? line.substring(0, comment) : line).append('\n');
-            if (t.endsWith(";") || (comment >= 0 && line.substring(0, comment).strip().endsWith(";"))) {
-                String s = cur.toString().strip();
-                if (s.endsWith(";")) s = s.substring(0, s.length() - 1);
-                if (!s.isBlank()) out.add(s);
-                cur.setLength(0);
+        int depth = 0;
+        int n = sql.length();
+        for (int i = 0; i < n; i++) {
+            char ch = sql.charAt(i);
+            if (ch == '\'' || ch == '"') {
+                int j = i + 1;
+                while (j < n) {
+                    if (sql.charAt(j) == ch) {
+                        if (j + 1 < n && sql.charAt(j + 1) == ch) { j += 2; continue; } // escaped quote
+                        break;
+                    }
+                    j++;
+                }
+                cur.append(sql, i, Math.min(n, j + 1));
+                i = j;
+                continue;
             }
+            if (ch == '-' && i + 1 < n && sql.charAt(i + 1) == '-') {
+                while (i < n && sql.charAt(i) != '\n') i++;
+                cur.append('\n');
+                continue;
+            }
+            if (Character.isLetter(ch) && (i == 0 || !Character.isLetterOrDigit(sql.charAt(i - 1)))) {
+                int j = i;
+                while (j < n && (Character.isLetterOrDigit(sql.charAt(j)) || sql.charAt(j) == '_')) j++;
+                String word = sql.substring(i, j).toUpperCase(java.util.Locale.ROOT);
+                if (word.equals("BEGIN")) depth++;
+                else if (word.equals("END") && depth > 0) depth--;
+                cur.append(sql, i, j);
+                i = j - 1;
+                continue;
+            }
+            if (ch == ';' && depth == 0) {
+                String st = cur.toString().strip();
+                if (!st.isEmpty()) out.add(st);
+                cur.setLength(0);
+                continue;
+            }
+            cur.append(ch);
         }
-        if (!cur.toString().isBlank()) out.add(cur.toString().strip());
+        String st = cur.toString().strip();
+        if (!st.isEmpty()) out.add(st);
         return out;
     }
 

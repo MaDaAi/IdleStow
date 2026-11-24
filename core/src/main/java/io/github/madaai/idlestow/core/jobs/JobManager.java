@@ -92,6 +92,19 @@ public final class JobManager implements AutoCloseable {
     /** Optimizes the given items. {@code gate} returns null to continue or a reason to stop (autonomy checks). */
     public long submitOptimize(List<IndexedItem> items, Method method, Origin origin, Long planId,
                                Supplier<String> gate) throws SQLException {
+        return submitOptimize(items, method, origin, planId, gate, null);
+    }
+
+    /** Result of a per-file re-check: the refreshed item to operate on, or the reason to skip it. */
+    public record ItemCheck(IndexedItem item, String skipReason) { }
+
+    /**
+     * Like {@link #submitOptimize(List, Method, Origin, Long, Supplier)}, with {@code itemCheck} evaluated
+     * immediately before each file (autonomous jobs re-assess activity per file).
+     */
+    public long submitOptimize(List<IndexedItem> items, Method method, Origin origin, Long planId,
+                               Supplier<String> gate, java.util.function.Function<IndexedItem, ItemCheck> itemCheck)
+            throws SQLException {
         long total = items.stream().mapToLong(IndexedItem::logicalSize).sum();
         long jobId = ctx.jobs().createJob(JobKind.OPTIMIZE, method, origin, planId, items.size(), total);
         start(jobId, token -> {
@@ -107,8 +120,18 @@ public final class JobManager implements AutoCloseable {
                 }
                 waitWhilePaused(jobId, token);
                 if (token.isCancelled()) break;
-                OpOutcome o = withLock(it.path(), () -> executor.optimize(jobId, it, method, origin, token,
-                        progressFor(jobId, it.path(), it.logicalSize())));
+                IndexedItem target = it;
+                if (itemCheck != null) {
+                    ItemCheck c = itemCheck.apply(it);
+                    if (c.skipReason() != null) {
+                        messages.add(it.name() + ": skipped (" + c.skipReason() + ")");
+                        continue;
+                    }
+                    target = c.item();
+                }
+                final IndexedItem fileItem = target;
+                OpOutcome o = withLock(fileItem.path(), () -> executor.optimize(jobId, fileItem, method, origin, token,
+                        progressFor(jobId, fileItem.path(), fileItem.logicalSize())));
                 if (o.result() == OpOutcome.Result.SUCCEEDED || o.result() == OpOutcome.Result.NO_BENEFIT) done++;
                 else if (o.result() != OpOutcome.Result.CANCELLED) {
                     failed++;

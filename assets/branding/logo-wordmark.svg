@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 256" width="800" height="256">
+  <title>IdleStow - Idle files. Reclaimed space.</title>
+  <defs>
+    <clipPath id="box-clip">
+      <rect x="44" y="48" width="168" height="160" rx="30" ry="30"/>
+    </clipPath>
+  </defs>
+  <!-- dark panel so the wordmark reads on light and dark READMEs -->
+  <rect x="0" y="0" width="800" height="256" rx="40" ry="40" fill="#0F172A"/>
+  <!-- logo mark (same geometry as logo.svg, offset 16px) -->
+  <g transform="translate(16 0)">
+    <rect x="44" y="48" width="168" height="160" rx="30" ry="30" fill="#60A5FA"/>
+    <rect x="44" y="128" width="168" height="80" fill="#0F172A" fill-opacity="0.22" clip-path="url(#box-clip)"/>
+    <path d="M82 92 L128 138 L174 92" fill="none" stroke="#0F172A" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <!-- wordmark and slogan -->
+  <text x="300" y="134" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="96" font-weight="700" fill="#F8FAFC">IdleStow</text>
+  <text x="304" y="186" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="30" font-weight="400" fill="#2DD4BF">Idle files. Reclaimed space.</text>
+</svg>

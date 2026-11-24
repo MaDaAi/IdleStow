@@ -100,7 +100,7 @@ public record Settings(
                 intRange(m.get("bg.idleMinutes"), 10, 1, 240),
                 en(m.get("perf.mode"), PerformanceMode.class, PerformanceMode.BALANCED),
                 intRange(m.get("perf.jobConcurrency"), 1, 1, 4),
-                longRange(m.get("perf.maxSampleBytes"), 4 * Sizes.MIB, 64 * Sizes.KIB, 64 * Sizes.MIB),
+                longRange(m.get("perf.maxSampleBytes"), Sizes.MIB, 64 * Sizes.KIB, 64 * Sizes.MIB),
                 longRange(m.get("perf.minFreeReserveBytes"), 2 * Sizes.GIB, 256 * Sizes.MIB, 1024 * Sizes.GIB),
                 intRange(m.get("perf.maxBatchSize"), 500, 1, 100_000),
                 longRange(m.get("perf.maxTempBytes"), 8 * Sizes.GIB, 64 * Sizes.MIB, 4096 * Sizes.GIB),

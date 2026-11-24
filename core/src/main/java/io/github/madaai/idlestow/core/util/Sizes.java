@@ -31,6 +31,9 @@ public final class Sizes {
     /** Rounds {@code size} up to a multiple of {@code cluster} (cluster ≤ 0 → unchanged). */
     public static long roundUp(long size, long cluster) {
         if (cluster <= 0 || size <= 0) return Math.max(0, size);
-        return ((size + cluster - 1) / cluster) * cluster;
+        long rem = size % cluster;
+        if (rem == 0) return size;
+        long up = cluster - rem;
+        return size > Long.MAX_VALUE - up ? Long.MAX_VALUE : size + up;
     }
 }

@@ -28,10 +28,13 @@ import java.util.stream.Collectors;
 /** Persistence for the file index, activity evidence and classifications. */
 public final class ItemRepository {
 
-    /** Window around a recorded IdleStow read in which a last-access update is attributed to IdleStow itself. */
-    static final long SELF_READ_BEFORE_MS = 5 * 60_000L;
-    /** NTFS updates last-access lazily (up to ~1 hour), so allow generous slack after the read finished. */
-    static final long SELF_READ_AFTER_MS = 65 * 60_000L;
+    /**
+     * Slack around a recorded IdleStow read in which a last-access time is attributed to IdleStow itself.
+     * Last-access values carry the time of the access, so only the read interval itself (plus clock/filesystem
+     * granularity) is masked; any later access is treated as user activity.
+     */
+    static final long SELF_READ_BEFORE_MS = 5_000L;
+    static final long SELF_READ_AFTER_MS = 5_000L;
 
     private final Database db;
     private final Clock clock;

@@ -209,10 +209,10 @@ public final class CandidateRepository {
         String now = clock.instant().toString();
         String exp = clock.instant().plus(validity).toString();
         db.tx(c -> {
-            Sql.update(c, "INSERT INTO approvals(plan_id, approved_utc, plan_digest, expires_utc) VALUES(?,?,?,?)"
-                    + " ON CONFLICT(plan_id) DO UPDATE SET approved_utc=excluded.approved_utc,"
-                    + " plan_digest=excluded.plan_digest, expires_utc=excluded.expires_utc, consumed_utc=NULL",
-                    planId, now, d, exp);
+            // A plan is approved at most once; an approval can never be re-armed after it was used.
+            int n = Sql.update(c, "INSERT OR IGNORE INTO approvals(plan_id, approved_utc, plan_digest, expires_utc)"
+                    + " VALUES(?,?,?,?)", planId, now, d, exp);
+            if (n == 0) throw new SQLException("Plan " + planId + " was already approved");
             Sql.update(c, "UPDATE optimization_plans SET status='APPROVED' WHERE id=?", planId);
         });
     }

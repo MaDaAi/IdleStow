@@ -1,0 +1,42 @@
+name: Package (Windows)
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build portable application image
+        shell: pwsh
+        run: ./scripts/package-windows.ps1
+      - name: Verify packaged application (smoke test)
+        shell: pwsh
+        run: |
+          $d = Join-Path $env:RUNNER_TEMP 'idlestow-smoke'
+          & dist/windows/IdleStow/IdleStow-cli.exe --smoke-test --data-dir $d
+          if ($LASTEXITCODE -ne 0) { throw "smoke test failed: $LASTEXITCODE" }
+      - name: Verify packaged application (end-to-end self-test on synthetic files)
+        shell: pwsh
+        run: |
+          $d = Join-Path $env:GITHUB_WORKSPACE 'selftest-tmp'
+          & dist/windows/IdleStow/IdleStow-cli.exe --self-test $d
+          if ($LASTEXITCODE -ne 0) { throw "self-test failed: $LASTEXITCODE" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: IdleStow-windows-portable
+          path: dist/*.zip
