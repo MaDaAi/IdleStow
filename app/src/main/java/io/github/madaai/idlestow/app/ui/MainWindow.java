@@ -113,7 +113,8 @@ public final class MainWindow implements Navigator {
         StackPane.setAlignment(toast, Pos.BOTTOM_CENTER);
         StackPane.setMargin(toast, new Insets(0, 0, 18, 0));
         toastTimer.setOnFinished(e -> toast.setVisible(false));
-        StackPane top = new StackPane(host, toast);
+        VBox.setVgrow(host, Priority.ALWAYS);
+        StackPane top = new StackPane(new VBox(updateBanner(), host), toast);
 
         scene = new Scene(top, 1280, 800);
         Theme.register(scene);
@@ -258,6 +259,39 @@ public final class MainWindow implements Navigator {
                 return v;
             });
         }
+    }
+
+    // ------------------------------------------------------------------ update banner
+
+    /** A slim banner above both views while a newer release is known; hidden otherwise. */
+    private Node updateBanner() {
+        HBox holder = new HBox();
+        holder.setManaged(false);
+        holder.setVisible(false);
+        var updates = ctx.updates();
+        if (updates == null) return holder;
+        updates.availableProperty().addListener((o, was, r) -> {
+            if (r == null) {
+                holder.getChildren().clear();
+                holder.setManaged(false);
+                holder.setVisible(false);
+                return;
+            }
+            Button see = UI.button("See what's new", Icons.DOWNLOAD, () ->
+                    io.github.madaai.idlestow.app.update.UpdateDialogs.offer(stage, ctx, updates, r), "primary");
+            Button later = UI.button("Later", null, () -> {
+                holder.setManaged(false);
+                holder.setVisible(false);
+            }, "flat");
+            HBox b = UI.banner(Icons.DOWNLOAD, "IdleStow " + r.version() + " is available. You have "
+                    + AppContext.version() + ".", "info", see, later);
+            HBox.setHgrow(b, Priority.ALWAYS);
+            holder.getChildren().setAll(b);
+            holder.setPadding(new Insets(10, 18, 0, 18));
+            holder.setManaged(true);
+            holder.setVisible(true);
+        });
+        return holder;
     }
 
     // ------------------------------------------------------------------ simple / advanced

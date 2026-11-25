@@ -4,6 +4,8 @@ import io.github.madaai.idlestow.app.tray.TrayService;
 import io.github.madaai.idlestow.app.ui.Actions;
 import io.github.madaai.idlestow.app.ui.Dialogs;
 import io.github.madaai.idlestow.app.ui.Legal;
+import io.github.madaai.idlestow.app.update.UpdateDialogs;
+import io.github.madaai.idlestow.app.update.UpdateService;
 import io.github.madaai.idlestow.app.ui.MainWindow;
 import io.github.madaai.idlestow.app.ui.Theme;
 import io.github.madaai.idlestow.app.ui.ViewId;
@@ -44,6 +46,15 @@ public final class IdleStowApp extends Application implements AppContext.Lifecyc
     private TrayService tray;
     private ScheduledExecutorService activationWatcher;
     private volatile boolean exiting;
+    private UpdateService updates;
+    private boolean askedAboutUpdates;
+
+    /** The first time the window is shown, asks once whether IdleStow may check for updates by itself. */
+    private void askAboutUpdatesOnce() {
+        if (askedAboutUpdates || updates == null || UpdateService.autoCheck(ctx.prefs()) != null) return;
+        askedAboutUpdates = true;
+        Platform.runLater(() -> UpdateDialogs.askAutoCheck(primary, updates));
+    }
 
     @Override
     public void start(Stage stage) {
@@ -155,6 +166,9 @@ public final class IdleStowApp extends Application implements AppContext.Lifecyc
         ctx.setLifecycle(this);
         LogLevels.applyVerbose(ctx.engine().settings().verboseLogging());
         Theme.set(Theme.Mode.of(ctx.engine().settings().theme()));
+        updates = new UpdateService(ctx);
+        ctx.setUpdates(updates);
+        updates.cleanUpLeftovers();
         window = new MainWindow(ctx, primary);
         window.installCloseHandler();
         boolean trayOk = false;
@@ -165,6 +179,11 @@ public final class IdleStowApp extends Application implements AppContext.Lifecyc
         }
         startActivationWatcher();
         window.start();
+        updates.availableProperty().addListener((o, was, r) -> {
+            if (r != null) notifyUser("IdleStow " + r.version() + " is available",
+                    "Open IdleStow to see what's new and install it.", false);
+        });
+        updates.startAutoChecks(); // does nothing until the person turns automatic checks on
         boolean onboarding = !ctx.engine().settings().onboardingCompleted();
         boolean simpleFirst = !"advanced".equals(ctx.prefs().getString("uiMode", "simple"));
         if (onboarding && simpleFirst) {
@@ -220,6 +239,7 @@ public final class IdleStowApp extends Application implements AppContext.Lifecyc
             }
             if (!primary.isShowing()) {
                 primary.show();
+                askAboutUpdatesOnce();
                 StartupTimer.mark("first window shown");
             }
             primary.setIconified(false);
@@ -249,6 +269,7 @@ public final class IdleStowApp extends Application implements AppContext.Lifecyc
                 window.stop();
             }
             if (tray != null) tray.remove();
+            if (updates != null) updates.stop();
             if (activationWatcher != null) activationWatcher.shutdownNow();
             Thread t = new Thread(() -> {
                 try {

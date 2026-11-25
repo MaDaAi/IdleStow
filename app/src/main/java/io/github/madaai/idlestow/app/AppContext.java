@@ -27,6 +27,7 @@ public final class AppContext {
     private final String workerNote;
     private volatile Navigator navigator;
     private volatile Lifecycle lifecycle;
+    private volatile io.github.madaai.idlestow.app.update.UpdateService updates;
 
     public AppContext(IdleStowEngine engine, LaunchArgs args, UiPrefs prefs, boolean workerAvailable,
                       String workerNote) {
@@ -76,6 +77,15 @@ public final class AppContext {
 
     public void setLifecycle(Lifecycle l) {
         this.lifecycle = l;
+    }
+
+    /** The updater; null in the smoke test. */
+    public io.github.madaai.idlestow.app.update.UpdateService updates() {
+        return updates;
+    }
+
+    public void setUpdates(io.github.madaai.idlestow.app.update.UpdateService u) {
+        this.updates = u;
     }
 
     public static String version() {

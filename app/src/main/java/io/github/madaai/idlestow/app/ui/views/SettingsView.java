@@ -333,11 +333,41 @@ public final class SettingsView extends BaseView {
                 + " IdleStow keeps indexing and optimizing in the background; use the tray icon to open or exit."
                 + (tray ? "" : " The system tray is not available here, so closing the window always exits.");
         close.setDisable(!tray);
-        return page("General", "Appearance and window behaviour.",
+        return page("General", "Appearance, window behaviour and updates.",
                 box(null, row("Theme", theme, "Applies immediately."),
                         row("When the window is closed", close, closeHint),
                         row("Notifications", toggle("Notify when jobs finish or fail", "ui.notifications",
-                                Settings::notifications), "Shown through the system tray.")));
+                                Settings::notifications), "Shown through the system tray.")),
+                updatesBox());
+    }
+
+    /** Updates: the only feature that uses the internet. */
+    private Node updatesBox() {
+        var updates = ctx.updates();
+        Label version = UI.label("IdleStow " + AppContext.version(), "detail-value");
+        if (updates == null) return box("Updates", version);
+        CheckBox auto = new CheckBox("Check for updates automatically (once a day)");
+        auto.setSelected(Boolean.TRUE.equals(io.github.madaai.idlestow.app.update.UpdateService.autoCheck(ctx.prefs())));
+        auto.setOnAction(e -> {
+            updates.setAutoCheck(auto.isSelected());
+            toast(auto.isSelected() ? "IdleStow will check GitHub for updates once a day"
+                    : "Automatic update checks are off. IdleStow will not use the internet unless you check by hand.");
+        });
+        Label last = UI.label(lastCheckText(updates.lastCheckMs()), "muted", "small");
+        Button now = UI.button("Check for updates", Icons.REFRESH, () ->
+                io.github.madaai.idlestow.app.update.UpdateDialogs.checkNow(owner(), ctx, updates));
+        updates.availableProperty().addListener((o, a, b) -> last.setText(lastCheckText(updates.lastCheckMs())));
+        return box("Updates",
+                row("Version", version, null),
+                row("Automatic checks", auto, "Checking is the only time IdleStow uses the internet: it asks GitHub"
+                        + " for the latest version number and sends nothing about you or your files. When no update"
+                        + " exists, nothing else happens. Turn this off to never connect automatically."),
+                row("Check now", new HBox(10, now, last), "An update is only downloaded when you choose to install"
+                        + " it. It is verified before anything changes, and the previous version is kept."));
+    }
+
+    private static String lastCheckText(long ms) {
+        return ms <= 0 ? "Never checked" : "Last checked " + Fmt.epochMs(ms);
     }
 
     // ------------------------------------------------------------------ Monitoring
