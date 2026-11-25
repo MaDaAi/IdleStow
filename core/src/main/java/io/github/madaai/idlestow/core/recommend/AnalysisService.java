@@ -86,6 +86,7 @@ public final class AnalysisService {
         Map<Long, long[]> evidence = loadEvidence(root.id());
         List<NewCandidate> fresh = new ArrayList<>();
         Map<String, Agg> aggs = new HashMap<>();
+        Map<Path, Agg[]> chains = new HashMap<>();
         long now = clock.millis();
         long files = 0, classified = 0, estimated = 0;
         int budget = estimateBudget;
@@ -164,7 +165,7 @@ public final class AnalysisService {
                         }
                     }
                 }
-                addToAggregates(aggs, rootPath, it, a, prot, est, actual);
+                addToAggregates(aggs, chains, rootPath, it, a, est, actual);
             }
             items.saveClassifications(cls);
         }
@@ -256,25 +257,42 @@ public final class AnalysisService {
         long files, dirs, active, inactive, unknown, excluded, optimized, logical, physical, est, actual;
     }
 
-    private void addToAggregates(Map<String, Agg> aggs, Path rootPath, IndexedItem it, ActivityAssessment a,
-                                 Protection prot, long est, long actual) {
-        for (Path dir = it.path().getParent(); dir != null && PathUtil.isWithin(dir, rootPath); dir = dir.getParent()) {
-            Agg g = aggs.computeIfAbsent(PathUtil.key(dir), k -> new Agg());
+    /**
+     * Adds one file to the aggregates of every folder from its parent up to the root. The folder chain (and the
+     * normalized key of each folder) is resolved once per distinct parent folder, not once per file.
+     */
+    private void addToAggregates(Map<String, Agg> aggs, Map<Path, Agg[]> chains, Path rootPath, IndexedItem it,
+                                 ActivityAssessment a, long est, long actual) {
+        Path parent = it.path().getParent();
+        Agg[] chain = parent == null ? NO_AGGS : chains.get(parent);
+        if (chain == null) {
+            List<Agg> l = new ArrayList<>();
+            for (Path dir = parent; dir != null && PathUtil.isWithin(dir, rootPath); dir = dir.getParent()) {
+                l.add(aggs.computeIfAbsent(PathUtil.key(dir), k -> new Agg()));
+                if (dir.equals(rootPath)) break;
+            }
+            chain = l.toArray(NO_AGGS);
+            chains.put(parent, chain);
+        }
+        long physical = it.physicalSize() >= 0 ? it.physicalSize() : it.logicalSize();
+        boolean optimized = it.optStatus() == OptStatus.NATIVE_COMPRESSED || it.optStatus() == OptStatus.ARCHIVE_COPY;
+        for (Agg g : chain) {
             g.files++;
             g.logical += it.logicalSize();
-            g.physical += it.physicalSize() >= 0 ? it.physicalSize() : it.logicalSize();
+            g.physical += physical;
             switch (a.classification()) {
                 case ACTIVE, PROBABLY_ACTIVE -> g.active++;
                 case INACTIVE, POTENTIALLY_INACTIVE -> g.inactive++;
                 case UNKNOWN -> g.unknown++;
                 default -> g.excluded++;
             }
-            if (it.optStatus() == OptStatus.NATIVE_COMPRESSED || it.optStatus() == OptStatus.ARCHIVE_COPY) g.optimized++;
+            if (optimized) g.optimized++;
             g.est += est;
             g.actual += actual;
-            if (dir.equals(rootPath)) break;
         }
     }
+
+    private static final Agg[] NO_AGGS = new Agg[0];
 
     private void saveAggregates(long rootId, Map<String, Agg> aggs) throws SQLException {
         String now = clock.instant().toString();

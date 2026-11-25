@@ -178,7 +178,7 @@ class SqlLikeAndInjectionTest {
         assertTrue(ex.stream().anyMatch(e -> e.kind().equals("PATH") && e.value().endsWith(INJECTION)));
         // the schema survived
         assertEquals(0L, scalar(db, "SELECT COUNT(*) FROM indexed_items"));
-        assertEquals(1, db.currentVersion());
+        assertEquals(2, db.currentVersion());
     }
 
     @Test

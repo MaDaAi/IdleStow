@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -73,45 +74,139 @@ public final class ItemRepository {
     /** Outcome counters of a batch upsert. */
     public record UpsertStats(int inserted, int updated, int moved, int changed) { }
 
+    /** The existing row for a path, with the columns that decide whether a scan found anything different. */
+    private static final String LOOKUP_SQL = "SELECT id, COALESCE(modified_ms,0), logical_size, COALESCE(accessed_ms,0),"
+            + " COALESCE(trusted_access_ms,0), root_id, path, parent_key, rel_path, name, extension, category, is_dir,"
+            + " special, file_key, volume_id, physical_size, physical_exact, created_ms, link_count, alt_streams,"
+            + " attr_flags, native_compressed, opt_status, present FROM indexed_items WHERE path_key=?";
+
+    private static final String MOVE_SQL = "SELECT id, path FROM indexed_items WHERE file_key=? AND root_id=? "
+            + "AND scan_generation<? AND present=1 AND is_dir=0";
+
+    private static final String INSERT_SQL = "INSERT INTO indexed_items(root_id, path, path_key, parent_key, rel_path,"
+            + " name, name_lc, extension, category, is_dir, present, special, file_key, volume_id, logical_size,"
+            + " physical_size, physical_exact, created_ms, modified_ms, accessed_ms, trusted_access_ms,"
+            + " first_indexed_utc, last_scanned_utc, link_count, alt_streams, attr_flags, native_compressed, opt_status,"
+            + " scan_generation) VALUES(?,?,?,?,?,?,?,?,?,?,1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+
+    private static final String UPDATE_SQL = "UPDATE indexed_items SET root_id=?, path=?, path_key=?, parent_key=?,"
+            + " rel_path=?, name=?, name_lc=?, extension=?, category=?, is_dir=?, present=1, special=?, file_key=?,"
+            + " volume_id=?, logical_size=?, physical_size=?, physical_exact=?, created_ms=?, modified_ms=?,"
+            + " accessed_ms=?, trusted_access_ms=?, last_scanned_utc=?, link_count=?, alt_streams=?, attr_flags=?,"
+            + " native_compressed=?,"
+            + " last_changed_utc=CASE WHEN ? THEN ? ELSE last_changed_utc END,"
+            + " opt_status=CASE"
+            + "   WHEN opt_status IN ('NONE','EXTERNALLY_COMPRESSED') AND ?=1 THEN 'EXTERNALLY_COMPRESSED'"
+            + "   WHEN opt_status='EXTERNALLY_COMPRESSED' AND ?=0 THEN 'NONE'"
+            + "   WHEN opt_status='NATIVE_COMPRESSED' AND ?=0 THEN 'NONE'"
+            + "   WHEN opt_status='NO_BENEFIT' AND ? THEN 'NONE'"
+            + "   ELSE opt_status END,"
+            + " scan_generation=? WHERE id=?";
+
+    /**
+     * Cheaper update for a row that a rescan found completely unchanged: only the bookkeeping columns
+     * (scan generation, scan time) are written, so the other indexes of the row are left alone.
+     */
+    private static final String TOUCH_SQL = "UPDATE indexed_items SET last_scanned_utc=?, scan_generation=? WHERE id=?";
+
     /**
      * Inserts or updates a batch of scanned entries in one transaction.
      * Detects modifications (recording evidence) and moves/renames via stable file keys.
+     * Statements are prepared once per batch rather than once per row.
      */
     public UpsertStats upsertBatch(long rootId, long generation, List<ScannedEntry> batch) throws SQLException {
         String now = clock.instant().toString();
         return db.txResult(c -> {
             int ins = 0, upd = 0, mov = 0, chg = 0;
-            for (ScannedEntry e : batch) {
-                String key = PathUtil.key(e.path());
-                Optional<long[]> existing = Sql.one(c,
-                        "SELECT id, COALESCE(modified_ms,0), logical_size, COALESCE(accessed_ms,0), "
-                                + "COALESCE(trusted_access_ms,0) FROM indexed_items WHERE path_key=?",
-                        rs -> new long[]{rs.getLong(1), rs.getLong(2), rs.getLong(3), rs.getLong(4), rs.getLong(5)},
-                        key);
-                if (existing.isPresent()) {
-                    long[] x = existing.get();
-                    boolean changed = !e.directory() && (x[1] != e.modifiedMs() || x[2] != e.logicalSize());
-                    long trusted = trustedAccess(c, x[0], x[3], x[4], e.accessedMs());
-                    updateRow(c, x[0], rootId, generation, e, trusted, now, changed);
-                    if (changed) {
-                        chg++;
-                        addEvidence(c, x[0], "MODIFIED_OBSERVED", e.modifiedMs(), null,
-                                "Content or size changed since the previous scan", now);
+            try (PreparedStatement lookup = c.prepareStatement(LOOKUP_SQL);
+                 PreparedStatement move = c.prepareStatement(MOVE_SQL);
+                 PreparedStatement insert = c.prepareStatement(INSERT_SQL);
+                 PreparedStatement update = c.prepareStatement(UPDATE_SQL);
+                 PreparedStatement touch = c.prepareStatement(TOUCH_SQL)) {
+                for (ScannedEntry e : batch) {
+                    String pathStr = e.path().toString();
+                    String key = PathUtil.key(e.path());
+                    String nameLc = e.name().toLowerCase(java.util.Locale.ROOT);
+                    String flags = flags(e.attrs());
+                    lookup.setString(1, key);
+                    try (ResultSet rs = lookup.executeQuery()) {
+                        if (rs.next()) {
+                            long id = rs.getLong(1);
+                            boolean changed = !e.directory()
+                                    && (rs.getLong(2) != e.modifiedMs() || rs.getLong(3) != e.logicalSize());
+                            long trusted = trustedAccess(c, id, rs.getLong(4), rs.getLong(5), e.accessedMs());
+                            boolean same = !changed && trusted == rs.getLong(5)
+                                    && unchanged(rs, rootId, pathStr, flags, e);
+                            rs.close(); // finish the read before writing the same row
+                            if (same) {
+                                Sql.bind(touch, now, generation, id);
+                                touch.executeUpdate();
+                            } else {
+                                Sql.bind(update, rootId, pathStr, key, e.parentKey(), e.relPath(), e.name(), nameLc,
+                                        e.extension(), e.category(), e.directory(), e.special(), e.fileKey(),
+                                        e.volumeId(), e.logicalSize(), e.physicalSize(), e.physicalExact(),
+                                        e.createdMs(), e.modifiedMs(), e.accessedMs(), trusted, now, e.linkCount(),
+                                        e.altStreams(), flags, e.nativeCompressed(), changed, now,
+                                        e.nativeCompressed() ? 1 : 0, e.nativeCompressed() ? 1 : 0,
+                                        e.nativeCompressed() ? 1 : 0, changed, generation, id);
+                                update.executeUpdate();
+                            }
+                            if (changed) {
+                                chg++;
+                                addEvidence(c, id, "MODIFIED_OBSERVED", e.modifiedMs(), null,
+                                        "Content or size changed since the previous scan", now);
+                            }
+                            upd++;
+                            continue;
+                        }
                     }
-                    upd++;
-                    continue;
+                    Long movedFrom = findMoveSource(move, rootId, generation, e);
+                    if (movedFrom != null) {
+                        Sql.bind(update, rootId, pathStr, key, e.parentKey(), e.relPath(), e.name(), nameLc,
+                                e.extension(), e.category(), e.directory(), e.special(), e.fileKey(), e.volumeId(),
+                                e.logicalSize(), e.physicalSize(), e.physicalExact(), e.createdMs(), e.modifiedMs(),
+                                e.accessedMs(), e.accessedMs(), now, e.linkCount(), e.altStreams(), flags,
+                                e.nativeCompressed(), false, now, e.nativeCompressed() ? 1 : 0,
+                                e.nativeCompressed() ? 1 : 0, e.nativeCompressed() ? 1 : 0, false, generation,
+                                movedFrom);
+                        update.executeUpdate();
+                        mov++;
+                        continue;
+                    }
+                    Sql.bind(insert, rootId, pathStr, key, e.parentKey(), e.relPath(), e.name(), nameLc, e.extension(),
+                            e.category(), e.directory(), e.special(), e.fileKey(), e.volumeId(), e.logicalSize(),
+                            e.physicalSize(), e.physicalExact(), e.createdMs(), e.modifiedMs(), e.accessedMs(),
+                            e.accessedMs(), now, now, e.linkCount(), e.altStreams(), flags, e.nativeCompressed(),
+                            e.nativeCompressed() ? OptStatus.EXTERNALLY_COMPRESSED.name() : OptStatus.NONE.name(),
+                            generation);
+                    insert.executeUpdate();
+                    ins++;
                 }
-                Long movedFrom = findMoveSource(c, rootId, generation, e);
-                if (movedFrom != null) {
-                    updateRow(c, movedFrom, rootId, generation, e, e.accessedMs(), now, false);
-                    mov++;
-                    continue;
-                }
-                insertRow(c, rootId, generation, e, now);
-                ins++;
             }
             return new UpsertStats(ins, upd, mov, chg);
         });
+    }
+
+    /**
+     * True when every stored column that a full update would write already holds the scanned value, and the
+     * optimization-status transitions of the full update would leave the status as it is.
+     */
+    private static boolean unchanged(ResultSet rs, long rootId, String path, String flags, ScannedEntry e)
+            throws SQLException {
+        if (rs.getLong(6) != rootId || !path.equals(rs.getString(7)) || !Objects.equals(e.parentKey(), rs.getString(8))
+                || !e.relPath().equals(rs.getString(9)) || !e.name().equals(rs.getString(10))
+                || !Objects.equals(e.extension(), rs.getString(11)) || !Objects.equals(e.category(), rs.getString(12))
+                || (rs.getInt(13) == 1) != e.directory() || (rs.getInt(14) == 1) != e.special()
+                || !Objects.equals(e.fileKey(), rs.getString(15)) || !Objects.equals(e.volumeId(), rs.getString(16))
+                || rs.getLong(17) != e.physicalSize() || (rs.getInt(18) == 1) != e.physicalExact()
+                || rs.getLong(19) != e.createdMs() || rs.getLong(4) != e.accessedMs()
+                || rs.getInt(20) != e.linkCount() || rs.getInt(21) != e.altStreams() || !flags.equals(rs.getString(22))
+                || (rs.getInt(23) == 1) != e.nativeCompressed() || rs.getInt(25) != 1) {
+            return false;
+        }
+        String status = rs.getString(24);
+        return e.nativeCompressed() ? !"NONE".equals(status)
+                : !("EXTERNALLY_COMPRESSED".equals(status) || "NATIVE_COMPRESSED".equals(status));
     }
 
     /**
@@ -128,11 +223,14 @@ public final class ItemRepository {
         return selfReads > 0 ? oldTrusted : newAccess;
     }
 
-    private Long findMoveSource(Connection c, long rootId, long generation, ScannedEntry e) throws SQLException {
+    private Long findMoveSource(PreparedStatement move, long rootId, long generation, ScannedEntry e)
+            throws SQLException {
         if (e.fileKey() == null || e.directory() || e.linkCount() > 1) return null;
-        List<Object[]> cands = Sql.list(c, "SELECT id, path FROM indexed_items WHERE file_key=? AND root_id=? "
-                        + "AND scan_generation<? AND present=1 AND is_dir=0",
-                rs -> new Object[]{rs.getLong(1), rs.getString(2)}, e.fileKey(), rootId, generation);
+        Sql.bind(move, e.fileKey(), rootId, generation);
+        List<Object[]> cands = new ArrayList<>(1);
+        try (ResultSet rs = move.executeQuery()) {
+            while (rs.next()) cands.add(new Object[]{rs.getLong(1), rs.getString(2)});
+        }
         for (Object[] cand : cands) {
             Path old = Path.of((String) cand[1]);
             // Only a move if the old path is really gone (otherwise it may be a hard link or a stale key).
@@ -143,42 +241,6 @@ public final class ItemRepository {
 
     private static String flags(Set<String> attrs) {
         return String.join(",", attrs);
-    }
-
-    private void insertRow(Connection c, long rootId, long gen, ScannedEntry e, String now) throws SQLException {
-        Sql.update(c, "INSERT INTO indexed_items(root_id, path, path_key, parent_key, rel_path, name, name_lc, extension,"
-                        + " category, is_dir, present, special, file_key, volume_id, logical_size, physical_size,"
-                        + " physical_exact, created_ms, modified_ms, accessed_ms, trusted_access_ms, first_indexed_utc,"
-                        + " last_scanned_utc, link_count, alt_streams, attr_flags, native_compressed, opt_status,"
-                        + " scan_generation) VALUES(?,?,?,?,?,?,?,?,?,?,1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                rootId, e.path().toString(), PathUtil.key(e.path()), e.parentKey(), e.relPath(), e.name(),
-                e.name().toLowerCase(java.util.Locale.ROOT), e.extension(), e.category(), e.directory(), e.special(),
-                e.fileKey(), e.volumeId(), e.logicalSize(), e.physicalSize(), e.physicalExact(), e.createdMs(),
-                e.modifiedMs(), e.accessedMs(), e.accessedMs(), now, now, e.linkCount(), e.altStreams(),
-                flags(e.attrs()), e.nativeCompressed(),
-                e.nativeCompressed() ? OptStatus.EXTERNALLY_COMPRESSED.name() : OptStatus.NONE.name(), gen);
-    }
-
-    private void updateRow(Connection c, long id, long rootId, long gen, ScannedEntry e, long trusted, String now,
-                           boolean changed) throws SQLException {
-        Sql.update(c, "UPDATE indexed_items SET root_id=?, path=?, path_key=?, parent_key=?, rel_path=?, name=?, name_lc=?,"
-                        + " extension=?, category=?, is_dir=?, present=1, special=?, file_key=?, volume_id=?, logical_size=?,"
-                        + " physical_size=?, physical_exact=?, created_ms=?, modified_ms=?, accessed_ms=?, trusted_access_ms=?,"
-                        + " last_scanned_utc=?, link_count=?, alt_streams=?, attr_flags=?, native_compressed=?,"
-                        + " last_changed_utc=CASE WHEN ? THEN ? ELSE last_changed_utc END,"
-                        + " opt_status=CASE"
-                        + "   WHEN opt_status IN ('NONE','EXTERNALLY_COMPRESSED') AND ?=1 THEN 'EXTERNALLY_COMPRESSED'"
-                        + "   WHEN opt_status='EXTERNALLY_COMPRESSED' AND ?=0 THEN 'NONE'"
-                        + "   WHEN opt_status='NATIVE_COMPRESSED' AND ?=0 THEN 'NONE'"
-                        + "   WHEN opt_status='NO_BENEFIT' AND ? THEN 'NONE'"
-                        + "   ELSE opt_status END,"
-                        + " scan_generation=? WHERE id=?",
-                rootId, e.path().toString(), PathUtil.key(e.path()), e.parentKey(), e.relPath(), e.name(),
-                e.name().toLowerCase(java.util.Locale.ROOT), e.extension(), e.category(), e.directory(), e.special(),
-                e.fileKey(), e.volumeId(), e.logicalSize(), e.physicalSize(), e.physicalExact(), e.createdMs(),
-                e.modifiedMs(), e.accessedMs(), trusted, now, e.linkCount(), e.altStreams(), flags(e.attrs()),
-                e.nativeCompressed(), changed, now, e.nativeCompressed() ? 1 : 0, e.nativeCompressed() ? 1 : 0,
-                e.nativeCompressed() ? 1 : 0, changed, gen, id);
     }
 
     /**
@@ -281,7 +343,7 @@ public final class ItemRepository {
 
     /** Iterates files of a root in id order, page by page, to keep memory bounded. */
     public List<IndexedItem> filesPage(long rootId, long afterId, int limit) throws SQLException {
-        return db.read(c -> Sql.list(c, "SELECT * FROM indexed_items WHERE root_id=? AND is_dir=0 AND present=1 AND id>?"
+        return db.read(c -> Sql.list(c, "SELECT * FROM indexed_items WHERE +root_id=? AND is_dir=0 AND present=1 AND id>?"
                 + " ORDER BY id LIMIT ?", ItemRepository::map, rootId, afterId, limit));
     }
 

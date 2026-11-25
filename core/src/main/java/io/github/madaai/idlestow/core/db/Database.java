@@ -35,7 +35,8 @@ public final class Database implements AutoCloseable {
 
     /** Ordered migrations. Never edit a released migration; add a new one. */
     static final List<String[]> MIGRATIONS = List.<String[]>of(
-            new String[]{"1", "initial schema", "/db/migration/V1__initial.sql"}
+            new String[]{"1", "initial schema", "/db/migration/V1__initial.sql"},
+            new String[]{"2", "query indexes", "/db/migration/V2__query_indexes.sql"}
     );
 
     private final Path file;
@@ -222,6 +223,27 @@ public final class Database implements AutoCloseable {
         } finally {
             lock.unlock();
         }
+    }
+
+    /**
+     * A token that changes whenever the database content may have changed: {@code total_changes()} counts every
+     * row written through this connection (including trigger and foreign-key actions; rolled-back writes stay
+     * counted, which only errs towards "changed"), and {@code data_version} changes when another connection commits.
+     */
+    public String changeStamp() throws SQLException {
+        return read(c -> {
+            try (Statement s = c.createStatement()) {
+                long changes;
+                try (ResultSet rs = s.executeQuery("SELECT total_changes()")) {
+                    changes = rs.next() ? rs.getLong(1) : -1;
+                }
+                long version;
+                try (ResultSet rs = s.executeQuery("PRAGMA data_version")) {
+                    version = rs.next() ? rs.getLong(1) : -1;
+                }
+                return changes + ":" + version;
+            }
+        });
     }
 
     /** Executes {@code fn} in a transaction; rolls back on any exception. */

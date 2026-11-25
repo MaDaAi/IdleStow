@@ -6,6 +6,10 @@ live in `core/src/main/resources/db/migration/` and are applied in order by `cor
 not modified.
 
 Pragmas: `journal_mode=WAL`, `synchronous=FULL`, `foreign_keys=ON`, `busy_timeout=10000`.
+Migrations: V1 initial schema; V2 query indexes (covering partial index `ix_items_live_files` over live files
+for dashboard aggregates, `ix_cand_status_savings` replacing `ix_cand_status`). Dashboard aggregates in `Queries`
+are cached until `Database.changeStamp()` (`total_changes()` + `data_version`) changes. Rescans only write the
+bookkeeping columns of rows whose scanned metadata is unchanged.
 All timestamps are UTC (`*_utc` ISO-8601 strings, `*_ms` epoch milliseconds). All SQL is parameterized.
 
 | Table | Purpose |

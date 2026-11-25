@@ -139,9 +139,19 @@ public final class ActivityClassifier {
         return new ActivityAssessment(ActivityClass.UNKNOWN, Confidence.LOW, last, idleDays, reasons);
     }
 
+    /** Files indexed by the same scan share one timestamp string, so the last parse is reused. */
+    private record Parsed(String iso, long millis) { }
+
+    private static volatile Parsed lastParsed = new Parsed(null, 0);
+
     private static long parseMillis(String iso, long fallback) {
+        if (iso == null) return fallback;
+        Parsed p = lastParsed;
+        if (iso.equals(p.iso())) return p.millis();
         try {
-            return iso == null ? fallback : Instant.parse(iso).toEpochMilli();
+            long ms = Instant.parse(iso).toEpochMilli();
+            lastParsed = new Parsed(iso, ms);
+            return ms;
         } catch (RuntimeException e) {
             return fallback;
         }

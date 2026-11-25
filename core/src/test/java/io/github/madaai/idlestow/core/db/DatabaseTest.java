@@ -49,7 +49,7 @@ class DatabaseTest {
     void freshOpenAppliesMigrationOne() throws Exception {
         Path f = tmp.resolve("sub/dir/idlestow.db");
         try (Database db = Database.open(f)) {
-            assertEquals(1, db.currentVersion());
+            assertEquals(2, db.currentVersion());
             assertEquals("ok", db.quickCheck());
             Set<String> t = tables(db);
             for (String expected : List.of("schema_migrations", "settings", "monitored_roots", "indexed_items",
@@ -68,11 +68,53 @@ class DatabaseTest {
         }
         for (int i = 0; i < 3; i++) {
             try (Database db = Database.open(f)) {
-                assertEquals(1, db.currentVersion());
-                assertEquals(1L, scalar(db, "SELECT COUNT(*) FROM schema_migrations"));
+                assertEquals(2, db.currentVersion());
+                assertEquals(2L, scalar(db, "SELECT COUNT(*) FROM schema_migrations"));
                 assertEquals("v", db.read(c -> Sql.one(c, "SELECT value FROM settings WHERE key='k'",
                         rs -> rs.getString(1)).orElse(null)));
             }
+        }
+    }
+
+    @Test
+    void migrationTwoUpgradesAVersionOneDatabaseAndKeepsItsRows() throws Exception {
+        Path f = tmp.resolve("v1.db");
+        try (Database db = Database.open(f)) {
+            // Put the database back into its released V1 shape, with data in it.
+            db.tx(c -> {
+                Sql.update(c, "DROP INDEX ix_items_live_files");
+                Sql.update(c, "DROP INDEX ix_cand_status_savings");
+                Sql.update(c, "CREATE INDEX ix_cand_status ON optimization_candidates(status)");
+                Sql.update(c, "DELETE FROM schema_migrations WHERE version=2");
+                Sql.update(c, "INSERT INTO settings(key,value,updated_utc) VALUES('k','v','now')");
+            });
+            assertEquals(1, db.currentVersion());
+        }
+        try (Database db = Database.open(f)) {
+            assertEquals(2, db.currentVersion());
+            assertEquals("ok", db.quickCheck());
+            List<String> idx = db.read(c -> Sql.list(c, "SELECT name FROM sqlite_master WHERE type='index'",
+                    rs -> rs.getString(1)));
+            assertTrue(idx.contains("ix_items_live_files") && idx.contains("ix_cand_status_savings"), idx.toString());
+            assertTrue(!idx.contains("ix_cand_status"), "superseded index is dropped");
+            assertEquals("v", db.read(c -> Sql.one(c, "SELECT value FROM settings WHERE key='k'",
+                    rs -> rs.getString(1)).orElse(null)));
+        }
+    }
+
+    @Test
+    void changeStampMovesWhenDataChanges() throws Exception {
+        try (Database db = Database.open(tmp.resolve("stamp.db"))) {
+            String a = db.changeStamp();
+            assertEquals(a, db.changeStamp(), "no writes: stamp is stable");
+            db.tx(c -> Sql.update(c, "INSERT INTO settings(key,value,updated_utc) VALUES('s','1','now')"));
+            String b = db.changeStamp();
+            assertTrue(!a.equals(b));
+            db.tx(c -> Sql.update(c, "UPDATE settings SET value='2' WHERE key='s'"));
+            assertTrue(!b.equals(db.changeStamp()));
+            String c2 = db.changeStamp();
+            db.tx(c -> Sql.update(c, "DELETE FROM settings WHERE key='s'"));
+            assertTrue(!c2.equals(db.changeStamp()));
         }
     }
 
@@ -237,7 +279,7 @@ class DatabaseTest {
         Path f = tmp.resolve("idlestow.db");
         Files.createFile(f);
         try (Database db = Database.open(f)) {
-            assertEquals(1, db.currentVersion());
+            assertEquals(2, db.currentVersion());
         }
     }
 

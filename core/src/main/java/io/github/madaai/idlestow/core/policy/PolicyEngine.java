@@ -102,7 +102,7 @@ public final class PolicyEngine {
         }
         Snapshot s = snapshot;
         Path p = PathUtil.normalize(path);
-        for (Path cur = p; cur != null; cur = cur.getParent()) {
+        for (Path cur = p; cur != null && !s.pins().isEmpty(); cur = cur.getParent()) {
             if (s.pins().contains(PathUtil.key(cur))) {
                 return new Protection(Restriction.PINNED, cur.equals(p) ? "Pinned by you"
                         : "Inside pinned folder " + cur);
