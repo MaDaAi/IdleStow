@@ -104,6 +104,62 @@ if ($dupes) {
     throw "Duplicate library versions in the package input: $(($dupes | ForEach-Object { $_.Group.Name }) -join ', ')"
 }
 
+# The package is Windows-only: drop the native libraries of other platforms that the cross-platform jars carry
+# (sqlite-jdbc ships ~20 targets, JNA ~25). The Windows natives are kept untouched. This only removes zip entries.
+Add-Type -AssemblyName System.IO.Compression
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+function Remove-JarEntries([string]$Jar, [string[]]$DropPrefixes) {
+    $tmp = "$Jar.slim"
+    $src = [System.IO.Compression.ZipFile]::OpenRead($Jar)
+    $dst = [System.IO.Compression.ZipFile]::Open($tmp, 'Create')
+    $kept = 0; $dropped = 0
+    try {
+        foreach ($e in $src.Entries) {
+            $drop = $false
+            foreach ($p in $DropPrefixes) { if ($e.FullName.StartsWith($p, [StringComparison]::Ordinal)) { $drop = $true; break } }
+            if ($drop) { $dropped++; continue }
+            $n = $dst.CreateEntry($e.FullName, [System.IO.Compression.CompressionLevel]::Optimal)
+            $n.LastWriteTime = $e.LastWriteTime
+            if ($e.Length -gt 0) {
+                $in = $e.Open(); $out = $n.Open()
+                try { $in.CopyTo($out) } finally { $out.Dispose(); $in.Dispose() }
+            }
+            $kept++
+        }
+    } finally { $dst.Dispose(); $src.Dispose() }
+    Move-Item -Force $tmp $Jar
+    Write-Host "Slimmed $(Split-Path -Leaf $Jar): kept $kept entries, dropped $dropped"
+}
+$sqliteJar = Get-ChildItem $InputDir -Filter 'sqlite-jdbc-*.jar' | Select-Object -First 1
+$sqliteDrop = @('Linux', 'Linux-Musl', 'Linux-Android', 'Mac', 'FreeBSD') | ForEach-Object { "org/sqlite/native/$_/" }
+Remove-JarEntries $sqliteJar.FullName $sqliteDrop
+$jnaJar = Get-ChildItem $InputDir -Filter 'jna-*.jar' | Where-Object { $_.Name -match '^jna-\d' } | Select-Object -First 1
+$jnaDrop = @('aix-ppc', 'aix-ppc64', 'darwin-x86-64', 'darwin-aarch64', 'dragonflybsd-x86-64', 'freebsd-x86', 'freebsd-x86-64',
+    'freebsd-aarch64', 'linux-x86', 'linux-x86-64', 'linux-arm', 'linux-armel', 'linux-aarch64', 'linux-ppc', 'linux-ppc64le',
+    'linux-mips64el', 'linux-loongarch64', 'linux-s390x', 'linux-riscv64', 'openbsd-x86-64', 'sunos-x86', 'sunos-x86-64',
+    'sunos-sparc', 'sunos-sparcv9', 'android-aarch64', 'android-arm', 'android-x86', 'android-x86-64') | ForEach-Object { "com/sun/jna/$_/" }
+Remove-JarEntries $jnaJar.FullName $jnaDrop
+
+# ---------------------------------------------------------------- jlink module set
+# Everything the app, JavaFX, SQLite JDBC, JNA, logback, Jackson and the updater (java.net.http over HTTPS) need.
+# jdeps verifies it below, so a new dependency that needs another JDK module fails the build instead of the app.
+#   java.base          core (incl. the default cacerts truststore)
+#   java.desktop       JavaFX graphics, AWT tray   java.logging, java.xml, java.naming, java.sql: logback/Jackson/JDBC
+#   java.net.http      updater HTTP client         jdk.crypto.ec: TLS elliptic-curve suites
+#   jdk.jfr            referenced by javafx.base   jdk.management: memory/OS beans   jdk.unsupported: sun.misc.Unsafe
+#   jdk.localedata     non-English locale data     jdk.charsets: extended charsets (console/worker code pages)
+# Deliberately absent: jdk.zipfs (nothing uses it), jdk.crypto.cryptoki, jdk.accessibility, java.se leftovers
+# (rmi, scripting, jgss, sasl, xml.crypto, sql.rowset, compiler, instrument ...).
+$JlinkModules = @('java.base', 'java.desktop', 'java.logging', 'java.naming', 'java.net.http', 'java.sql', 'java.xml',
+    'jdk.crypto.ec', 'jdk.jfr', 'jdk.localedata', 'jdk.charsets', 'jdk.management', 'jdk.unsupported')
+$jarList = @(Get-ChildItem $InputDir -Filter '*.jar' | ForEach-Object { $_.FullName })
+$needed = (& (Join-Path $Jdk 'bin\jdeps.exe') --multi-release 21 --ignore-missing-deps --print-module-deps $jarList 2>$null) -split ','
+if ($LASTEXITCODE -ne 0) { throw "jdeps failed ($LASTEXITCODE)" }
+$transitive = @('java.xml', 'java.logging', 'java.prefs', 'java.datatransfer')   # pulled in by the modules above
+$missing = $needed | ForEach-Object { $_.Trim() } | Where-Object { $_ -and ($JlinkModules -notcontains $_) -and ($transitive -notcontains $_) }
+if ($missing) { throw "jdeps requires JDK modules missing from the jlink module set: $($missing -join ', ')" }
+Write-Host "jdeps module requirements: $($needed -join ',')"
+
 # ---------------------------------------------------------------- 2. Python worker
 $PyZip = Join-Path $Cache $PyZipName
 if (-not (Test-Path $PyZip)) {
@@ -133,6 +189,10 @@ $App = Join-Path $Worker 'app'
 New-Item -ItemType Directory -Force -Path $App | Out-Null
 Copy-Item -Recurse (Join-Path $Root 'python\idlestow') (Join-Path $App 'idlestow')
 Get-ChildItem -Recurse -Directory -Filter '__pycache__' $App | Remove-Item -Recurse -Force
+# Pre-compile the worker. Hash-based .pyc files stay valid after unzipping (timestamps do not survive a zip round trip),
+# so the worker does not recompile its modules on every start.
+& (Join-Path $PyDir 'python.exe') -s -m compileall -q --invalidation-mode checked-hash $App
+if ($LASTEXITCODE -ne 0) { throw 'compileall of the worker package failed' }
 # Smoke-check the bundled worker before packaging.
 $probe = & (Join-Path $PyDir 'python.exe') -s -c "import sys; sys.path.insert(0, r'$App'); import idlestow.worker, zstandard; print('worker-ok', zstandard.__version__)"
 if ($LASTEXITCODE -ne 0 -or -not ("$probe" -match 'worker-ok')) { throw "Bundled worker probe failed: $probe" }
@@ -157,20 +217,47 @@ $imageArgs = @(
     '--input', $InputDir,
     '--main-jar', 'idlestow.jar',
     '--main-class', 'io.github.madaai.idlestow.app.Launcher',
-    '--add-modules', 'java.se,jdk.unsupported,jdk.management,jdk.crypto.ec,jdk.localedata,jdk.charsets,jdk.zipfs,jdk.accessibility',
-    '--jlink-options', '--strip-debug --no-man-pages --no-header-files',
+    '--add-modules', ($JlinkModules -join ','),
+    # --generate-cds-archive: the runtime image ships no default CDS archive, so JDK classes would be parsed on every start.
+    '--jlink-options', '--strip-debug --no-man-pages --no-header-files --generate-cds-archive',
     '--java-options', '-Dfile.encoding=UTF-8',
     '--java-options', '--enable-native-access=ALL-UNNAMED',
+    # Serial GC: measurably faster start and a smaller footprint for a desktop app whose data lives in SQLite, not on the heap.
+    '--java-options', '-XX:+UseSerialGC',
+    # Application class-data-sharing archive, created by the JVM on the first run on the user's machine and re-created
+    # automatically when the jars change (e.g. after an update). It is NOT shipped: the JVM validates it against the absolute
+    # jar paths of the machine that built it, so an archive from the build machine is useless after unzipping elsewhere.
+    # If the folder is not writable the JVM just starts without it. -Xlog:cds*=off keeps dump warnings off the console.
+    '--java-options', '-XX:+AutoCreateSharedArchive',
+    '--java-options', '-XX:SharedArchiveFile=$APPDIR\IdleStow.jsa',
+    '--java-options', '-Xlog:cds*=off',
     '--add-launcher', "IdleStow-cli=$cliProps"
 ) + $common
 & (Join-Path $Jdk 'bin\jpackage.exe') @imageArgs
 if ($LASTEXITCODE -ne 0) { throw "jpackage failed ($LASTEXITCODE)" }
 $AppImage = Join-Path $ImageDir 'IdleStow'
+# jlink writes a second CDS archive for heaps above 32 GB (no compressed oops). A desktop app never runs with such a heap
+# and the JVM simply runs without CDS if it ever did, so it is not worth 12 MB.
+Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $AppImage 'runtime\bin\server\classes_nocoops.jsa')
 Copy-Item -Recurse $Worker (Join-Path $AppImage 'worker')
 foreach ($f in @('LICENSE', 'NOTICE', 'THIRD-PARTY-NOTICES.md', 'README.md')) {
     $src = Join-Path $Root $f
     if (Test-Path $src) { Copy-Item $src $AppImage }
 }
+
+# Packaged-image gate: run the real console launcher once against a throw-away data dir under the build folder. This proves
+# the trimmed runtime, the bundled worker and the JVM options work, and that the CDS archive can be created. The archive is
+# then deleted so it is not shipped (see the java-options comment above).
+$smokeRoot = Join-Path $Build 'smoke'
+New-Item -ItemType Directory -Force -Path $smokeRoot | Out-Null
+$prevEap = $ErrorActionPreference; $ErrorActionPreference = 'Continue'   # the JVM writes warnings to stderr
+$smokeOut = & (Join-Path $AppImage 'IdleStow-cli.exe') --smoke-test --data-dir (Join-Path $smokeRoot 'data') 2>&1 | Out-String
+$smokeExit = $LASTEXITCODE; $ErrorActionPreference = $prevEap
+if ($smokeExit -ne 0 -or $smokeOut -notmatch 'SMOKE OK') { throw "Packaged smoke test failed ($smokeExit): $smokeOut" }
+$jsa = Join-Path $AppImage 'app\IdleStow.jsa'
+if (-not (Test-Path $jsa)) { Write-Warning 'The application CDS archive was not created by the training run.' }
+Remove-Item -Force -ErrorAction SilentlyContinue $jsa
+Write-Host 'Packaged smoke test: SMOKE OK'
 
 # ---------------------------------------------------------------- 4. archives / installer
 $PortableZip = Join-Path $Dist "IdleStow-$Version-windows-x64-portable.zip"
