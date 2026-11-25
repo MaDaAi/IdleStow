@@ -111,11 +111,11 @@
    "id": "IP-010",
    "category": "Copyright and IP",
    "criterion": "Icon and logo rights",
-   "severity": "MEDIUM",
-   "status": "UNVERIFIED",
+   "severity": "LOW",
+   "status": "PARTIAL",
    "applicability": "applicable",
-   "evidence": "Baseline: simple original geometric mark drawn in-project. Final: logo replaced with owner-supplied idlestow-hibernation.svg; its origin (self-made, commissioned, template or AI-generated) is not recorded. UI icons remain original SVG paths.",
-   "human_action": "Owner: confirm you created the logo or hold rights to it; record that in assets/branding/README.md.",
+   "evidence": "Baseline: simple original geometric mark drawn in-project. Final: logo replaced with an owner-supplied SVG that the owner generated with an AI image tool (origin recorded in assets/branding/README.md). The specific tool and its output terms are not recorded; purely AI-generated images may not be copyrightable; no similarity search (BRAND-009).",
+   "human_action": "Owner: keep a note of which AI tool made it and check that its terms allow public use of the output.",
    "release_blocking": false
   },
   {
@@ -3470,8 +3470,8 @@
  "status_totals": {
   "PASS": 164,
   "FAIL": 1,
-  "PARTIAL": 10,
-  "UNVERIFIED": 28,
+  "PARTIAL": 11,
+  "UNVERIFIED": 27,
   "NOT_APPLICABLE": 111
  },
  "scored_checks": 203,

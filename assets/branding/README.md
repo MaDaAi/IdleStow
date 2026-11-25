@@ -4,7 +4,7 @@ Slogan: **Idle files. Reclaimed space.**
 
 ## The mark
 
-A mint document with a folded corner on a rounded navy tile. A crescent moon is cut out of the page with a small sparkle beside it: the file is "hibernating", stored away but still there. The mark was supplied by the project owner (Mansoor Alakoozai) as `idlestow-hibernation.svg` and is used unchanged apart from its `<title>`. It is authored on a 512 x 512 grid. At 32 px and below the generator drops the sparkle and shadow and enlarges the page slightly so the icon stays legible.
+A mint document with a folded corner on a rounded navy tile. A crescent moon is cut out of the page with a small sparkle beside it: the file is "hibernating", stored away but still there. The mark was generated with an AI image tool by the project owner (Mansoor Alakoozai), supplied as `idlestow-hibernation.svg`, and is used unchanged apart from its `<title>`. Because it is AI-generated, it may not be protected by copyright, so others could reuse the image itself. The IdleStow name and logo can still identify the project as a trademark through use. It is authored on a 512 x 512 grid. At 32 px and below the generator drops the sparkle and shadow and enlarges the page slightly so the icon stays legible.
 
 ## Colors
 

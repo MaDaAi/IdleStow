@@ -13,7 +13,7 @@ Generated from `FINAL_AUDIT.json`. Baseline status is from `BASELINE_AUDIT.json`
 | IP-007 | Third-party notices preserved | MEDIUM | PASS | PASS | THIRD-PARTY-NOTICES.md; packaged runtime/legal (Temurin) and worker/python/LICENSE.txt; dependency jars shipped intact with META-INF notices. |  |
 | IP-008 | Documentation ownership | LOW | PASS | PASS | All docs written in-project. |  |
 | IP-009 | Image/illustration rights | LOW | NOT_APPLICABLE | NOT_APPLICABLE | No images or illustrations other than the logo (IP-010). |  |
-| IP-010 | Icon and logo rights | MEDIUM | PASS | UNVERIFIED | Baseline: simple original geometric mark drawn in-project. Final: logo replaced with owner-supplied idlestow-hibernation.svg; its origin (self-made, commissioned, template or AI-generated) is not recorded. UI icons remain original SVG paths. | Owner: confirm you created the logo or hold rights to it; record that in assets/branding/README.md. |
+| IP-010 | Icon and logo rights | LOW | PASS | PARTIAL | Baseline: simple original geometric mark drawn in-project. Final: logo replaced with an owner-supplied SVG that the owner generated with an AI image tool (origin recorded in assets/branding/README.md). The specific tool and its output terms are not recorded; purely AI-generated images may not be copyrightable; no similarity search (BRAND-009). | Owner: keep a note of which AI tool made it and check that its terms allow public use of the output. |
 | IP-011 | Font licensing | LOW | PASS | PASS | No fonts bundled; CSS references system fonts (Segoe UI etc.). |  |
 | IP-012 | Audio/music licensing | LOW | NOT_APPLICABLE | NOT_APPLICABLE | No audio. |  |
 | IP-013 | Video/animation licensing | LOW | NOT_APPLICABLE | NOT_APPLICABLE | No video or animation assets. |  |

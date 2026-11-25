@@ -17,7 +17,6 @@ CRITICAL. UNVERIFIED means not checked, not proven to be a problem.
 | GIT-021 | MEDIUM | PARTIAL | Licence compliance across packages | - |
 | IP-003 | MEDIUM | UNVERIFIED | Copied online snippets | Owner: optional similarity scan before a commercial release. |
 | IP-005 | MEDIUM | UNVERIFIED | AI-generated code provenance | Owner: line-by-line review of safety-critical code; lawyer if the project becomes commercial. |
-| IP-010 | MEDIUM | UNVERIFIED | Icon and logo rights | Owner: confirm you created the logo or hold rights to it; record that in assets/branding/README.md. |
 | IP-018 | MEDIUM | UNVERIFIED | Employer/university IP obligations | Owner: check any employment/school IP policy covers personal projects. |
 | LIC-014 | MEDIUM | PARTIAL | GPL obligations | Owner: attach Temurin and OpenJFX source archives to each GitHub release that ships binaries (or obtain advice on an alternative). |
 | LIC-026 | MEDIUM | PARTIAL | Corresponding source availability | As LIC-014. |
@@ -43,4 +42,5 @@ CRITICAL. UNVERIFIED means not checked, not proven to be a problem.
 | GIT-001 | LOW | UNVERIFIED | Repository description | - |
 | GIT-013 | LOW | UNVERIFIED | Release artifact integrity | - |
 | GIT-018 | LOW | UNVERIFIED | Build reproducibility | - |
+| IP-010 | LOW | PARTIAL | Icon and logo rights | Owner: keep a note of which AI tool made it and check that its terms allow public use of the output. |
 | SEC-041 | LOW | UNVERIFIED | Release integrity verification | Owner: publish SHA-256 sums with releases. |

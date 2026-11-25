@@ -15,5 +15,6 @@
 | Owner request | `app/.../ui/simple/SimpleHome.java` (new), `MainWindow.java`, `IdleStowApp.java`, `base.css`, docs | Simple view (default) with Free up space (transparent compression only); the existing UI becomes the Advanced view. |
 | Owner request | `app/.../tray/TrayService.java`, `TrayMenu.java` (new), `IdleStowEngine.pausedUntilMs()` | Themed tray popup with status. Test: `PauseStateTest`. |
 | CON-020 | `base.css` | Unticked checkboxes showed a faint tick app-wide (could read as pre-ticked consent); hyperlink text was painted like body text. Both fixed. |
+| IP-010 (2026-11-25) | `assets/branding/README.md` | Owner confirmed the logo was made with an AI image tool; origin and its copyright limits recorded. UNVERIFIED to PARTIAL. |
 
 Rollback: each change is independent; `git checkout e80009b -- <file>` restores any file.
