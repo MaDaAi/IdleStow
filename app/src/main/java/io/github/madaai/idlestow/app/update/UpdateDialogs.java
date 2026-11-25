@@ -35,17 +35,18 @@ public final class UpdateDialogs {
         if (owner != null) d.initOwner(owner);
         d.setTitle("Updates");
         d.setHeaderText("Check for updates automatically?");
-        Label text = UI.wrapped("IdleStow can check once a day whether a newer version is available. That check is"
-                + " the only time IdleStow uses the internet: it asks GitHub (where IdleStow is published) for the"
-                + " latest version number. Nothing about you or your files is sent, though GitHub can see your IP"
-                + " address, as with any website. If no update exists, nothing else happens. An update is only"
-                + " downloaded when you choose to install it.");
-        Label off = UI.wrapped("You can change this at any time in Settings > General > Updates, and check by hand"
-                + " whenever you like.", "muted");
+        Label text = UI.wrapped("IdleStow can check once a day for a newer version. This is the only time it uses"
+                + " the internet: it asks GitHub for the latest version number and sends nothing about you or your"
+                + " files (GitHub sees your IP address, like any website). Updates are only downloaded if you"
+                + " choose to install them.");
+        Label off = UI.wrapped("You can change this any time in Settings > General > Updates.", "muted");
         VBox box = new VBox(10, text, off);
-        box.setMaxWidth(520);
+        box.setPrefWidth(500);
         box.setPadding(new Insets(4, 2, 4, 2));
         d.getDialogPane().setContent(box);
+        // A wrapped label asks for its full one-line width unless the dialog has a fixed width.
+        d.getDialogPane().setPrefWidth(540);
+        d.getDialogPane().setMaxWidth(540);
         ButtonType yes = new ButtonType("Yes, check automatically", ButtonBar.ButtonData.YES);
         ButtonType no = new ButtonType("No, I'll check myself", ButtonBar.ButtonData.NO);
         d.getDialogPane().getButtonTypes().setAll(no, yes);
@@ -92,6 +93,8 @@ public final class UpdateDialogs {
         VBox box = new VBox(10, notes, how);
         box.setPrefWidth(600);
         d.getDialogPane().setContent(box);
+        d.getDialogPane().setPrefWidth(640);
+        d.getDialogPane().setMaxWidth(640);
         ButtonType install = new ButtonType(unsupported.isPresent() ? "Open download page" : "Install update",
                 ButtonBar.ButtonData.OK_DONE);
         ButtonType skip = new ButtonType("Skip this version", ButtonBar.ButtonData.LEFT);
