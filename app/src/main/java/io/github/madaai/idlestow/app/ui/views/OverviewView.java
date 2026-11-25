@@ -36,9 +36,12 @@ import javafx.util.StringConverter;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 
 /** Dashboard: measured totals, estimates (always labelled) and charts. Works with an empty index. */
 public final class OverviewView extends BaseView {
@@ -46,7 +49,8 @@ public final class OverviewView extends BaseView {
     private record Data(Queries.Totals totals, long reclaimed, long pendingAfter, long pendingSavings,
                         long pendingCount, long activeJobs, long attention, List<MonitoredRoot> roots,
                         List<Object[]> byCategory, List<Object[]> byRoot, List<Object[]> byActivity,
-                        List<long[]> savings, List<Object[]> largest, List<Object[]> effectiveness) { }
+                        List<long[]> savings, List<Object[]> largest, List<Object[]> effectiveness, String mode, boolean paused,
+                        boolean backgroundEnabled, long nextScanMs, boolean scanning) { }
 
     private final VBox content = new VBox(16);
     private final ScrollPane scroll = new ScrollPane(content);
@@ -80,6 +84,33 @@ public final class OverviewView extends BaseView {
         return e != IdleStowEngine.Event.SCAN || !ctx.engine().scanStatus().running();
     }
 
+    /** A piece of the page that is rebuilt only when the data it shows changes. */
+    private static final class Slot {
+        private Object key;
+        private Node node;
+
+        boolean update(Object newKey, Supplier<Node> builder) {
+            if (node != null && Objects.equals(key, newKey)) return false;
+            key = newKey;
+            node = builder.get();
+            return true;
+        }
+    }
+
+    private final Slot welcomeSlot = new Slot();
+    private final Slot kpiSlot = new Slot();
+    private final Slot statusSlot = new Slot();
+    private final Slot bannerSlot = new Slot();
+    private final Slot largestSlot = new Slot();
+    private final Slot[] chartSlots = new Slot[6];
+    private final Node[] chartCards = new Node[6];
+    private GridPane grid;
+    private Data lastData;
+
+    {
+        for (int i = 0; i < chartSlots.length; i++) chartSlots[i] = new Slot();
+    }
+
     @Override
     protected CompletableFuture<Void> load() {
         return Background.supply(() -> {
@@ -88,41 +119,90 @@ public final class OverviewView extends BaseView {
             return new Data(q.totals(), q.currentReclaimed(), q.pendingAfterRetention(), e.pendingSavings(),
                     e.pendingRecommendationCount(), e.jobs().countActive(), e.recoveryRecords().countNeedingAttention(),
                     e.roots(), q.byCategory(), q.byRoot(), q.byActivity(), e.history().savingsPerDay(90),
-                    q.largestCandidates(10), q.effectiveness());
+                    q.largestCandidates(10), q.effectiveness(), e.settings().mode().label(), e.paused(),
+                    e.settings().backgroundEnabled(), e.nextScanAtMs(), e.scanStatus().running());
         }).thenAccept(this::render);
     }
 
-    private void render(Data d) {
-        content.getChildren().clear();
-        if (d.roots().isEmpty()) {
-            content.getChildren().add(welcomeCard());
+    /** Content equality for row lists (arrays compare by identity otherwise). */
+    private static List<String> k(List<?> rows) {
+        List<String> out = new ArrayList<>(rows.size());
+        for (Object r : rows) {
+            out.add(r instanceof Object[] a ? Arrays.deepToString(a) : r instanceof long[] l ? Arrays.toString(l)
+                    : String.valueOf(r));
         }
-        content.getChildren().add(kpis(d));
-        content.getChildren().add(statusStrip(d));
-        if (d.totals().files() == 0 && !d.roots().isEmpty()) {
-            content.getChildren().add(UI.banner(Icons.INFO, ctx.engine().scanStatus().running()
+        return out;
+    }
+
+    private void render(Data d) {
+        if (lastData != null && !content.getChildren().isEmpty() && sameData(lastData, d)) return;
+        lastData = d;
+        boolean noRoots = d.roots().isEmpty();
+        if (noRoots) welcomeSlot.update(Boolean.TRUE, this::welcomeCard);
+        kpiSlot.update(List.of(d.totals(), d.reclaimed(), d.pendingAfter(), d.pendingSavings(),
+                d.pendingCount(), d.activeJobs(), d.attention()), () -> kpis(d));
+        statusSlot.update(List.of(d.roots(), d.mode(), d.paused(), d.backgroundEnabled(), d.nextScanMs()),
+                () -> statusStrip(d));
+        boolean empty = d.totals().files() == 0 && !noRoots;
+        if (empty) {
+            bannerSlot.update(d.scanning(), () -> UI.banner(Icons.INFO, d.scanning()
                     ? "Indexing is in progress. Charts fill in as files are indexed."
                     : "Nothing is indexed yet. Press F5 (Scan now) to index your monitored folders.", "info"));
         }
-        GridPane grid = new GridPane();
-        grid.setHgap(16);
-        grid.setVgap(16);
-        for (int i = 0; i < 2; i++) {
-            ColumnConstraints cc = new ColumnConstraints();
-            cc.setPercentWidth(50);
-            cc.setHgrow(Priority.ALWAYS);
-            grid.getColumnConstraints().add(cc);
+        if (grid == null) {
+            grid = new GridPane();
+            grid.setHgap(16);
+            grid.setVgap(16);
+            for (int i = 0; i < 2; i++) {
+                ColumnConstraints cc = new ColumnConstraints();
+                cc.setPercentWidth(50);
+                cc.setHgrow(Priority.ALWAYS);
+                grid.getColumnConstraints().add(cc);
+            }
         }
-        grid.add(chartCard("Storage by category", "Measured (logical size)", categoryPie(d.byCategory())), 0, 0);
-        grid.add(chartCard("Storage by monitored location", "Measured (logical size)", rootBars(d.byRoot())), 1, 0);
-        grid.add(chartCard("Activity distribution", "Classification (files)", activityPie(d.byActivity())), 0, 1);
-        grid.add(chartCard("Active vs inactive", "Measured (logical size)", activeBars(d.byActivity())), 1, 1);
-        grid.add(chartCard("Measured savings over time", "Cumulative, last 90 days", savingsLine(d.savings())), 0, 2);
-        grid.add(chartCard("Compression effectiveness", "Measured per method", effectivenessTable(d.effectiveness())),
-                1, 2);
-        content.getChildren().add(grid);
-        content.getChildren().add(chartCard("Largest recommendations", "Estimates - not guaranteed",
+        chart(0, k(d.byCategory()), "Storage by category", "Measured (logical size)",
+                () -> categoryPie(d.byCategory()), 0, 0);
+        chart(1, k(d.byRoot()), "Storage by monitored location", "Measured (logical size)",
+                () -> rootBars(d.byRoot()), 1, 0);
+        chart(2, k(d.byActivity()), "Activity distribution", "Classification (files)",
+                () -> activityPie(d.byActivity()), 0, 1);
+        chart(3, k(d.byActivity()), "Active vs inactive", "Measured (logical size)",
+                () -> activeBars(d.byActivity()), 1, 1);
+        chart(4, k(d.savings()), "Measured savings over time", "Cumulative, last 90 days",
+                () -> savingsLine(d.savings()), 0, 2);
+        chart(5, k(d.effectiveness()), "Compression effectiveness", "Measured per method",
+                () -> effectivenessTable(d.effectiveness()), 1, 2);
+        largestSlot.update(k(d.largest()), () -> chartCard("Largest recommendations", "Estimates - not guaranteed",
                 largestTable(d.largest())));
+        List<Node> wanted = new ArrayList<>();
+        if (noRoots) wanted.add(welcomeSlot.node);
+        wanted.add(kpiSlot.node);
+        wanted.add(statusSlot.node);
+        if (empty) wanted.add(bannerSlot.node);
+        wanted.add(grid);
+        wanted.add(largestSlot.node);
+        if (!wanted.equals(content.getChildren())) content.getChildren().setAll(wanted);
+    }
+
+    private void chart(int i, Object key, String title, String subtitle, Supplier<Node> body, int col, int row) {
+        Slot slot = chartSlots[i];
+        if (slot.update(key, () -> chartCard(title, subtitle, body.get()))) {
+            if (chartCards[i] != null) grid.getChildren().remove(chartCards[i]);
+            chartCards[i] = slot.node;
+            grid.add(slot.node, col, row);
+        }
+    }
+
+    private static boolean sameData(Data a, Data b) {
+        return a.totals().equals(b.totals()) && a.reclaimed() == b.reclaimed() && a.pendingAfter() == b.pendingAfter()
+                && a.pendingSavings() == b.pendingSavings() && a.pendingCount() == b.pendingCount()
+                && a.activeJobs() == b.activeJobs() && a.attention() == b.attention() && a.roots().equals(b.roots())
+                && a.mode().equals(b.mode()) && a.paused() == b.paused()
+                && a.backgroundEnabled() == b.backgroundEnabled() && a.nextScanMs() == b.nextScanMs()
+                && a.scanning() == b.scanning() && k(a.byCategory()).equals(k(b.byCategory()))
+                && k(a.byRoot()).equals(k(b.byRoot())) && k(a.byActivity()).equals(k(b.byActivity()))
+                && k(a.savings()).equals(k(b.savings())) && k(a.largest()).equals(k(b.largest()))
+                && k(a.effectiveness()).equals(k(b.effectiveness()));
     }
 
     private Node welcomeCard() {
@@ -166,18 +246,17 @@ public final class OverviewView extends BaseView {
     }
 
     private Node statusStrip(Data d) {
-        IdleStowEngine e = ctx.engine();
         HBox row = new HBox(10);
         row.setAlignment(Pos.CENTER_LEFT);
         row.getStyleClass().add("card-flat");
         String lastScan = d.roots().stream().map(MonitoredRoot::lastScanUtc).filter(s -> s != null)
                 .max(String::compareTo).map(Fmt::iso).orElse("never");
         row.getChildren().addAll(
-                UI.label("Mode", "detail-key"), UI.badge(e.settings().mode().label(), "info"),
-                UI.label("Background", "detail-key"), UI.badge(e.paused() ? "Paused" : e.settings().backgroundEnabled()
-                        ? "On" : "Off", e.paused() ? "warn" : e.settings().backgroundEnabled() ? "ok" : "neutral"),
+                UI.label("Mode", "detail-key"), UI.badge(d.mode(), "info"),
+                UI.label("Background", "detail-key"), UI.badge(d.paused() ? "Paused" : d.backgroundEnabled()
+                        ? "On" : "Off", d.paused() ? "warn" : d.backgroundEnabled() ? "ok" : "neutral"),
                 UI.label("Last scan", "detail-key"), UI.label(lastScan, "detail-value"),
-                UI.label("Next scan", "detail-key"), UI.label(e.nextScanAtMs() > 0 ? Fmt.epochMs(e.nextScanAtMs())
+                UI.label("Next scan", "detail-key"), UI.label(d.nextScanMs() > 0 ? Fmt.epochMs(d.nextScanMs())
                         : "not scheduled", "detail-value"),
                 UI.spacer(), UI.button("Open Recommendations", Icons.RECOMMEND,
                         () -> ctx.nav().show(ViewId.RECOMMENDATIONS), "flat"));

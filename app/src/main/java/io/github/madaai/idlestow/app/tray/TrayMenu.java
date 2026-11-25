@@ -5,6 +5,7 @@ import io.github.madaai.idlestow.app.ui.Branding;
 import io.github.madaai.idlestow.app.ui.Icons;
 import io.github.madaai.idlestow.app.ui.Theme;
 import io.github.madaai.idlestow.app.ui.components.UI;
+import io.github.madaai.idlestow.app.util.Background;
 import io.github.madaai.idlestow.app.util.Fmt;
 import io.github.madaai.idlestow.core.engine.IdleStowEngine;
 import javafx.animation.PauseTransition;
@@ -124,7 +125,13 @@ final class TrayMenu {
 
         Node logo = Branding.logo(30);
         Label name = UI.label("IdleStow", "tray-title");
-        Label status = UI.label(statusText(e), "tray-status");
+        Label status = UI.label(statusText(e, null), "tray-status");
+        if (!e.paused() && !e.scanStatus().running() && !e.readOnly()) {
+            // The folder count needs the database, so it is fetched off the FX thread and filled in when ready.
+            Background.supply(() -> e.roots().size()).whenComplete((n, err) -> {
+                if (err == null) status.setText(statusText(e, n));
+            });
+        }
         HBox head = new HBox(10, logo, new VBox(1, name, status));
         head.setAlignment(Pos.CENTER_LEFT);
         head.getStyleClass().add("tray-head");
@@ -182,7 +189,8 @@ final class TrayMenu {
         return r;
     }
 
-    static String statusText(IdleStowEngine e) {
+    /** Pure (no database access): {@code folderCount} is the already-loaded number of folders, or null if unknown. */
+    static String statusText(IdleStowEngine e, Integer folderCount) {
         if (e.paused()) {
             long until = e.pausedUntilMs();
             if (until > 0 && until != Long.MAX_VALUE) {
@@ -194,11 +202,7 @@ final class TrayMenu {
         }
         if (e.scanStatus().running()) return "Scanning your folders...";
         if (e.readOnly()) return "Read-only: nothing is changed";
-        try {
-            int n = e.roots().size();
-            return n == 0 ? "No folders yet" : "Watching " + Fmt.plural(n, "folder");
-        } catch (Exception ex) {
-            return "Running";
-        }
+        if (folderCount == null) return "Running";
+        return folderCount == 0 ? "No folders yet" : "Watching " + Fmt.plural(folderCount, "folder");
     }
 }

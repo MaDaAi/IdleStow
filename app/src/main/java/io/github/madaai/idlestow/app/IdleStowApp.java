@@ -10,6 +10,7 @@ import io.github.madaai.idlestow.app.ui.ViewId;
 import io.github.madaai.idlestow.app.ui.onboarding.OnboardingWizard;
 import io.github.madaai.idlestow.app.util.Background;
 import io.github.madaai.idlestow.app.util.LogLevels;
+import io.github.madaai.idlestow.app.util.StartupTimer;
 import io.github.madaai.idlestow.app.util.UiPrefs;
 import io.github.madaai.idlestow.core.db.Database;
 import io.github.madaai.idlestow.core.engine.InstanceLock;
@@ -50,6 +51,7 @@ public final class IdleStowApp extends Application implements AppContext.Lifecyc
         this.args = Launcher.launchArgs;
         this.dataDir = Launcher.dataDir;
         Platform.setImplicitExit(false);
+        StartupTimer.mark("JavaFX started");
         try {
             if (args.smokeTest()) {
                 startSmoke();
@@ -72,7 +74,7 @@ public final class IdleStowApp extends Application implements AppContext.Lifecyc
             exit();
             return;
         }
-        Background.supply(() -> Bootstrap.create(args, dataDir)).whenComplete((c, err) -> {
+        engine().whenComplete((c, err) -> {
             if (err != null) {
                 onBootstrapFailure(err);
                 return;
@@ -80,6 +82,19 @@ public final class IdleStowApp extends Application implements AppContext.Lifecyc
             ctx = c;
             afterEngine();
         });
+    }
+
+    /** The engine started during toolkit initialisation when possible; delivered on the FX thread. */
+    private java.util.concurrent.CompletableFuture<AppContext> engine() {
+        var pre = Launcher.enginePreload;
+        Launcher.enginePreload = null;
+        if (pre == null) return Background.supply(() -> Bootstrap.create(args, dataDir));
+        var out = new java.util.concurrent.CompletableFuture<AppContext>();
+        pre.whenComplete((c, e) -> Background.fx(() -> {
+            if (e != null) out.completeExceptionally(e);
+            else out.complete(c);
+        }));
+        return out;
     }
 
     private void onBootstrapFailure(Throwable err) {
@@ -203,7 +218,10 @@ public final class IdleStowApp extends Application implements AppContext.Lifecyc
                 window.restoreGeometry();
                 window.showInitial();
             }
-            if (!primary.isShowing()) primary.show();
+            if (!primary.isShowing()) {
+                primary.show();
+                StartupTimer.mark("first window shown");
+            }
             primary.setIconified(false);
             primary.toFront();
             primary.requestFocus();
@@ -266,11 +284,10 @@ public final class IdleStowApp extends Application implements AppContext.Lifecyc
             Launcher.releaseLock();
             Runtime.getRuntime().halt(1);
         }, 150, TimeUnit.SECONDS);
-        Background.supply(() -> {
-            AppContext c = Bootstrap.create(args, dataDir);
+        engine().thenCompose(c -> Background.supply(() -> {
             seedSample(c);
             return c;
-        }).whenComplete((c, err) -> {
+        })).whenComplete((c, err) -> {
             if (err != null) {
                 smokeFail(err);
                 return;
@@ -349,6 +366,7 @@ public final class IdleStowApp extends Application implements AppContext.Lifecyc
                     System.out.println("SMOKE FAILED: " + smokeProblem);
                     smokeFinish(1);
                 } else {
+                    System.out.println(StartupTimer.mark("smoke complete"));
                     System.out.println("SMOKE OK");
                     smokeFinish(0);
                 }
