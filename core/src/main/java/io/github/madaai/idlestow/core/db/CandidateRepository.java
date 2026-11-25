@@ -146,6 +146,15 @@ public final class CandidateRepository {
         return db.read(c -> Sql.scalarLong(c, "SELECT COUNT(*) FROM optimization_candidates WHERE status='PENDING'"));
     }
 
+    /** Count and estimated savings of PENDING candidates for one method (one aggregate query; for status views). */
+    public record MethodSummary(long count, long estSavings) { }
+
+    public MethodSummary pendingSummary(Method method) throws SQLException {
+        return db.read(c -> Sql.one(c, "SELECT COUNT(*), COALESCE(SUM(est_savings),0) FROM optimization_candidates"
+                + " WHERE status='PENDING' AND method=?", rs -> new MethodSummary(rs.getLong(1), rs.getLong(2)), method)
+                .orElse(new MethodSummary(0, 0)));
+    }
+
     public long pendingSavings() throws SQLException {
         return db.read(c -> Sql.scalarLong(c,
                 "SELECT COALESCE(SUM(est_savings),0) FROM optimization_candidates WHERE status IN ('PENDING','APPROVED')"));

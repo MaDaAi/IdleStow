@@ -970,6 +970,11 @@ public final class IdleStowEngine implements AutoCloseable {
         return candidates.pendingCount();
     }
 
+    /** Pending recommendations for one method, aggregated in SQL (cheap enough to poll). */
+    public CandidateRepository.MethodSummary pendingSummary(Method method) throws SQLException {
+        return candidates.pendingSummary(method);
+    }
+
     public long pendingSavings() throws SQLException {
         return candidates.pendingSavings();
     }
