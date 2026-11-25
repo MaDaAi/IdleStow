@@ -90,6 +90,6 @@ public final class AppContext {
 
     public static String version() {
         String v = AppContext.class.getPackage() == null ? null : AppContext.class.getPackage().getImplementationVersion();
-        return v == null ? "0.1.1" : v;
+        return v == null ? "0.1.2" : v;
     }
 }

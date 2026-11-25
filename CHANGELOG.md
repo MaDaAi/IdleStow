@@ -3,6 +3,12 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses semantic versioning.
 
+## [0.1.2] - 2026-11-25
+
+### Fixed
+- The "Check for updates automatically?" question stretched wider than the screen; it now opens at a normal
+  size with shorter wording. The "Update available" dialog has a fixed width too.
+
 ## [0.1.1] - 2026-11-25
 
 ### Added
