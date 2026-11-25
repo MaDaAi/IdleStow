@@ -121,21 +121,61 @@ public final class Queries {
                          long archivedFiles, long recoveryRequired) { }
 
     public Totals totals() throws SQLException {
-        return db.read(c -> {
+        return cached("totals", () -> db.read(c -> {
             long files = Sql.scalarLong(c, "SELECT COUNT(*) FROM indexed_items WHERE is_dir=0 AND present=1");
             long dirs = Sql.scalarLong(c, "SELECT COUNT(*) FROM indexed_items WHERE is_dir=1 AND present=1");
-            // Hard-linked files are counted once per (volume, file id).
-            long logical = Sql.scalarLong(c, "SELECT COALESCE(SUM(s),0) FROM (SELECT MAX(logical_size) s FROM"
-                    + " indexed_items WHERE is_dir=0 AND present=1 GROUP BY COALESCE(file_key, 'p'||id))");
-            long physical = Sql.scalarLong(c, "SELECT COALESCE(SUM(s),0) FROM (SELECT MAX(CASE WHEN physical_size>=0"
-                    + " THEN physical_size ELSE logical_size END) s FROM indexed_items WHERE is_dir=0 AND present=1"
-                    + " GROUP BY COALESCE(file_key, 'p'||id))");
+            // Hard-linked files are counted once per (volume, file id); files without an identity count individually.
+            // Both halves are answered from the covering partial index ix_items_live_files.
+            long[] sizes = Sql.one(c, "SELECT COALESCE(SUM(l),0), COALESCE(SUM(p),0) FROM ("
+                    + " SELECT MAX(logical_size) l, MAX(CASE WHEN physical_size>=0 THEN physical_size ELSE logical_size END) p"
+                    + "   FROM indexed_items WHERE is_dir=0 AND present=1 AND file_key IS NOT NULL GROUP BY file_key"
+                    + " UNION ALL"
+                    + " SELECT logical_size, CASE WHEN physical_size>=0 THEN physical_size ELSE logical_size END"
+                    + "   FROM indexed_items WHERE is_dir=0 AND present=1 AND file_key IS NULL)",
+                    rs -> new long[]{rs.getLong(1), rs.getLong(2)}).orElse(new long[2]);
             long roots = Sql.scalarLong(c, "SELECT COUNT(*) FROM monitored_roots WHERE revoked_utc IS NULL");
             long opt = Sql.scalarLong(c, "SELECT COUNT(*) FROM indexed_items WHERE opt_status='NATIVE_COMPRESSED'");
             long arch = Sql.scalarLong(c, "SELECT COUNT(*) FROM indexed_items WHERE opt_status='ARCHIVED'");
             long rec = Sql.scalarLong(c, "SELECT COUNT(*) FROM indexed_items WHERE opt_status='RECOVERY_REQUIRED'");
-            return new Totals(files, dirs, logical, physical, roots, opt, arch, rec);
-        });
+            return new Totals(files, dirs, sizes[0], sizes[1], roots, opt, arch, rec);
+        }));
+    }
+
+    // ---------------------------------------------------------------- result cache
+
+    private record CacheEntry(String stamp, Object value) { }
+
+    private final java.util.Map<String, CacheEntry> cache = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * Dashboard aggregates are polled by the UI far more often than the data changes. Results are reused for as
+     * long as the database is provably unchanged: every write goes through the single connection, so
+     * {@code total_changes()} moves on any insert/update/delete, and {@code data_version} moves when any other
+     * connection commits. The stamp is read before computing, so a concurrent write can only cause a recompute.
+     */
+    private <T> T cached(String key, SqlSupplier<T> compute) throws SQLException {
+        String stamp = db.changeStamp();
+        CacheEntry e = cache.get(key);
+        if (e != null && e.stamp().equals(stamp)) {
+            @SuppressWarnings("unchecked") T v = (T) e.value();
+            return v;
+        }
+        T v = compute.get();
+        cache.put(key, new CacheEntry(stamp, v));
+        return v;
+    }
+
+    @FunctionalInterface
+    private interface SqlSupplier<T> {
+        T get() throws SQLException;
+    }
+
+    /** Cached breakdown lists are returned as defensive copies so callers cannot corrupt the cache. */
+    private List<Object[]> cachedRows(String key, SqlSupplier<List<Object[]>> compute) throws SQLException {
+        List<Object[]> rows = cached(key, compute);
+        List<Object[]> copy = new ArrayList<>(rows.size());
+        for (Object[] r : rows) copy.add(r.clone());
+        return copy;
     }
 
     /**
@@ -144,7 +184,7 @@ public final class Queries {
      * archived originals whose retained copy has been purged: original size − archive size.
      */
     public long currentReclaimed() throws SQLException {
-        return db.read(c -> {
+        return cached("currentReclaimed", () -> db.read(c -> {
             // grouped by file identity so hard-linked paths are counted once
             long nat = Sql.scalarLong(c, "SELECT COALESCE(SUM(s),0) FROM (SELECT MAX(MAX(0, ((i.logical_size"
                     + " + COALESCE(v.cluster_size,4096) - 1) / COALESCE(v.cluster_size,4096)) * COALESCE(v.cluster_size,4096)"
@@ -154,50 +194,56 @@ public final class Queries {
             long arch = Sql.scalarLong(c, "SELECT COALESCE(SUM(MAX(0, size - COALESCE(archive_size,0))),0)"
                     + " FROM recovery_records WHERE kind='ARCHIVE_REPLACE' AND status='ORIGINAL_PURGED'");
             return nat + arch;
-        });
+        }));
     }
 
     /** Bytes saved once retained originals are purged (archive replacements still in retention). */
     public long pendingAfterRetention() throws SQLException {
-        return db.read(c -> Sql.scalarLong(c, "SELECT COALESCE(SUM(MAX(0, size - COALESCE(archive_size,0))),0)"
-                + " FROM recovery_records WHERE kind='ARCHIVE_REPLACE' AND status='ACTIVE'"));
+        return cached("pendingAfterRetention", () -> db.read(c -> Sql.scalarLong(c,
+                "SELECT COALESCE(SUM(MAX(0, size - COALESCE(archive_size,0))),0)"
+                + " FROM recovery_records WHERE kind='ARCHIVE_REPLACE' AND status='ACTIVE'")));
     }
 
     /** Category → [files, logical bytes]. */
     public List<Object[]> byCategory() throws SQLException {
-        return db.read(c -> Sql.list(c, "SELECT category, COUNT(*), COALESCE(SUM(logical_size),0) FROM indexed_items"
+        return cachedRows("byCategory", () -> db.read(c -> Sql.list(c,
+                "SELECT category, COUNT(*), COALESCE(SUM(logical_size),0) FROM indexed_items"
                         + " WHERE is_dir=0 AND present=1 GROUP BY category ORDER BY 3 DESC",
-                rs -> new Object[]{rs.getString(1), rs.getLong(2), rs.getLong(3)}));
+                rs -> new Object[]{rs.getString(1), rs.getLong(2), rs.getLong(3)})));
     }
 
     /** Root path → [files, logical bytes]. */
     public List<Object[]> byRoot() throws SQLException {
-        return db.read(c -> Sql.list(c, "SELECT r.display_name, COUNT(i.id), COALESCE(SUM(i.logical_size),0)"
+        return cachedRows("byRoot", () -> db.read(c -> Sql.list(c,
+                "SELECT r.display_name, COUNT(i.id), COALESCE(SUM(i.logical_size),0)"
                         + " FROM monitored_roots r LEFT JOIN indexed_items i ON i.root_id=r.id AND i.is_dir=0 AND i.present=1"
                         + " WHERE r.revoked_utc IS NULL GROUP BY r.id ORDER BY 3 DESC",
-                rs -> new Object[]{rs.getString(1), rs.getLong(2), rs.getLong(3)}));
+                rs -> new Object[]{rs.getString(1), rs.getLong(2), rs.getLong(3)})));
     }
 
     /** Classification → [files, bytes]. */
     public List<Object[]> byActivity() throws SQLException {
-        return db.read(c -> Sql.list(c, "SELECT ac.classification, COUNT(*), COALESCE(SUM(i.logical_size),0)"
+        return cachedRows("byActivity", () -> db.read(c -> Sql.list(c,
+                "SELECT ac.classification, COUNT(*), COALESCE(SUM(i.logical_size),0)"
                         + " FROM activity_classifications ac JOIN indexed_items i ON i.id=ac.item_id"
                         + " WHERE i.present=1 GROUP BY ac.classification ORDER BY 2 DESC",
-                rs -> new Object[]{rs.getString(1), rs.getLong(2), rs.getLong(3)}));
+                rs -> new Object[]{rs.getString(1), rs.getLong(2), rs.getLong(3)})));
     }
 
     /** Largest pending candidates: [path, est savings, method]. */
     public List<Object[]> largestCandidates(int limit) throws SQLException {
-        return db.read(c -> Sql.list(c, "SELECT i.path, oc.est_savings, oc.method FROM optimization_candidates oc"
+        return cachedRows("largestCandidates:" + limit, () -> db.read(c -> Sql.list(c,
+                "SELECT i.path, oc.est_savings, oc.method FROM optimization_candidates oc"
                         + " JOIN indexed_items i ON i.id=oc.item_id WHERE oc.status='PENDING' ORDER BY oc.est_savings DESC"
-                        + " LIMIT ?", rs -> new Object[]{rs.getString(1), rs.getLong(2), rs.getString(3)}, limit));
+                        + " LIMIT ?", rs -> new Object[]{rs.getString(1), rs.getLong(2), rs.getString(3)}, limit)));
     }
 
     /** Compression effectiveness: [method, operations, logical bytes, before physical, after physical]. */
     public List<Object[]> effectiveness() throws SQLException {
-        return db.read(c -> Sql.list(c, "SELECT method, COUNT(*), COALESCE(SUM(logical_size),0),"
+        return cachedRows("effectiveness", () -> db.read(c -> Sql.list(c,
+                "SELECT method, COUNT(*), COALESCE(SUM(logical_size),0),"
                         + " COALESCE(SUM(before_physical),0), COALESCE(SUM(after_physical),0) FROM optimization_history"
                         + " WHERE action='OPTIMIZE' AND outcome='SUCCEEDED' GROUP BY method",
-                rs -> new Object[]{rs.getString(1), rs.getLong(2), rs.getLong(3), rs.getLong(4), rs.getLong(5)}));
+                rs -> new Object[]{rs.getString(1), rs.getLong(2), rs.getLong(3), rs.getLong(4), rs.getLong(5)})));
     }
 }

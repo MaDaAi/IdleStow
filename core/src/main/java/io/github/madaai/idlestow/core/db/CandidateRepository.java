@@ -44,26 +44,30 @@ public final class CandidateRepository {
         db.tx(c -> {
             Sql.update(c, "CREATE TEMP TABLE IF NOT EXISTS keep_items(item_id INTEGER PRIMARY KEY)");
             Sql.update(c, "DELETE FROM keep_items");
-            for (NewCandidate n : fresh) {
-                Sql.update(c, "INSERT OR IGNORE INTO keep_items(item_id) VALUES(?)", n.itemId());
-                Sql.update(c, "INSERT INTO optimization_candidates(item_id, method, est_savings, est_basis, reason,"
-                                + " policy_ref, classification, confidence, warnings, auto_eligible, status,"
-                                + " snapshot_size, snapshot_mtime, snapshot_key, created_utc, updated_utc)"
-                                + " VALUES(?,?,?,?,?,?,?,?,?,?,'PENDING',?,?,?,?,?) ON CONFLICT(item_id) DO UPDATE SET"
-                                + " method=excluded.method, est_savings=excluded.est_savings, est_basis=excluded.est_basis,"
-                                + " reason=excluded.reason, policy_ref=excluded.policy_ref,"
-                                + " classification=excluded.classification, confidence=excluded.confidence,"
-                                + " warnings=excluded.warnings, auto_eligible=excluded.auto_eligible,"
-                                // a user decision only survives while the file is unchanged
-                                + " status=CASE WHEN optimization_candidates.snapshot_size=excluded.snapshot_size"
-                                + "   AND optimization_candidates.snapshot_mtime=excluded.snapshot_mtime"
-                                + "   AND optimization_candidates.status IN ('REJECTED','DISMISSED','POSTPONED','APPROVED')"
-                                + "   THEN optimization_candidates.status ELSE 'PENDING' END,"
-                                + " snapshot_size=excluded.snapshot_size, snapshot_mtime=excluded.snapshot_mtime,"
-                                + " snapshot_key=excluded.snapshot_key, updated_utc=excluded.updated_utc",
-                        n.itemId(), n.method(), n.estSavings(), n.estBasis(), n.reason(), n.policyRef(),
-                        n.classification(), n.confidence(), n.warnings(), n.autoEligible(), n.snapshotSize(),
-                        n.snapshotMtime(), n.snapshotKey(), now, now);
+            try (var keep = c.prepareStatement("INSERT OR IGNORE INTO keep_items(item_id) VALUES(?)");
+                 var upsert = c.prepareStatement("INSERT INTO optimization_candidates(item_id, method, est_savings,"
+                         + " est_basis, reason, policy_ref, classification, confidence, warnings, auto_eligible, status,"
+                         + " snapshot_size, snapshot_mtime, snapshot_key, created_utc, updated_utc)"
+                         + " VALUES(?,?,?,?,?,?,?,?,?,?,'PENDING',?,?,?,?,?) ON CONFLICT(item_id) DO UPDATE SET"
+                         + " method=excluded.method, est_savings=excluded.est_savings, est_basis=excluded.est_basis,"
+                         + " reason=excluded.reason, policy_ref=excluded.policy_ref,"
+                         + " classification=excluded.classification, confidence=excluded.confidence,"
+                         + " warnings=excluded.warnings, auto_eligible=excluded.auto_eligible,"
+                         // a user decision only survives while the file is unchanged
+                         + " status=CASE WHEN optimization_candidates.snapshot_size=excluded.snapshot_size"
+                         + "   AND optimization_candidates.snapshot_mtime=excluded.snapshot_mtime"
+                         + "   AND optimization_candidates.status IN ('REJECTED','DISMISSED','POSTPONED','APPROVED')"
+                         + "   THEN optimization_candidates.status ELSE 'PENDING' END,"
+                         + " snapshot_size=excluded.snapshot_size, snapshot_mtime=excluded.snapshot_mtime,"
+                         + " snapshot_key=excluded.snapshot_key, updated_utc=excluded.updated_utc")) {
+                for (NewCandidate n : fresh) {
+                    Sql.bind(keep, n.itemId());
+                    keep.executeUpdate();
+                    Sql.bind(upsert, n.itemId(), n.method(), n.estSavings(), n.estBasis(), n.reason(), n.policyRef(),
+                            n.classification(), n.confidence(), n.warnings(), n.autoEligible(), n.snapshotSize(),
+                            n.snapshotMtime(), n.snapshotKey(), now, now);
+                    upsert.executeUpdate();
+                }
             }
             Sql.update(c, "DELETE FROM optimization_candidates WHERE status IN ('PENDING','APPROVED') AND item_id IN"
                     + " (SELECT id FROM indexed_items WHERE root_id=?) AND item_id NOT IN (SELECT item_id FROM keep_items)",
@@ -130,9 +134,12 @@ public final class CandidateRepository {
     public void setStatus(List<Long> candidateIds, CandidateStatus status, Long postponedUntilMs) throws SQLException {
         String now = clock.instant().toString();
         db.tx(c -> {
-            for (Long id : candidateIds) {
-                Sql.update(c, "UPDATE optimization_candidates SET status=?, postponed_until_ms=?, updated_utc=? WHERE id=?",
-                        status, postponedUntilMs, now, id);
+            try (var ps = c.prepareStatement(
+                    "UPDATE optimization_candidates SET status=?, postponed_until_ms=?, updated_utc=? WHERE id=?")) {
+                for (Long id : candidateIds) {
+                    Sql.bind(ps, status, postponedUntilMs, now, id);
+                    ps.executeUpdate();
+                }
             }
         });
     }
@@ -174,10 +181,12 @@ public final class CandidateRepository {
             long id = Sql.insert(c, "INSERT INTO optimization_plans(method, origin, authorization_mode, policy_version,"
                             + " status, item_count, est_savings, created_utc) VALUES(?,?,?,?,'DRAFT',?,?,?)",
                     method, origin, mode, policyVersion, items.size(), estSavings, now);
-            for (PlanItem it : items) {
-                Sql.update(c, "INSERT INTO plan_items(plan_id, item_id, path, snapshot_size, snapshot_mtime, snapshot_key)"
-                                + " VALUES(?,?,?,?,?,?)", id, it.itemId(), it.path(), it.snapshotSize(), it.snapshotMtime(),
-                        it.snapshotKey());
+            try (var ps = c.prepareStatement("INSERT INTO plan_items(plan_id, item_id, path, snapshot_size,"
+                    + " snapshot_mtime, snapshot_key) VALUES(?,?,?,?,?,?)")) {
+                for (PlanItem it : items) {
+                    Sql.bind(ps, id, it.itemId(), it.path(), it.snapshotSize(), it.snapshotMtime(), it.snapshotKey());
+                    ps.executeUpdate();
+                }
             }
             return id;
         });

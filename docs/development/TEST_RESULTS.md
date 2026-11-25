@@ -67,6 +67,38 @@ After (`benchmarks/results/indexing-optimized.md`):
 | 10 000 | 200 | 5.01 s | 1 998 | 3.31 s | 0.7 ms | 13.3 ms | 10.4 MiB | 6 MiB |
 | 100 000 | 2 000 | 35.70 s | 2 801 | 38.79 s | 1.8 ms | 114.4 ms | 103.6 MiB | 6 MiB |
 
+### Database/analysis optimization (schema V2) — `IndexingBenchmark` and `DbPerfBenchmark`
+
+Machine: AMD64 Family 25 Model 80 (12 logical CPUs), max heap 8168 MiB, Windows 11 10.0.26100, Oracle JDK 21.0.1,
+synthetic data only. Same-machine before/after, single runs (no repeats; run-to-run noise of roughly +-15 % was
+observed on the micro-benchmark).
+
+End to end (`./mvnw -q -pl platform -am test -Dtest=IndexingBenchmark -Dsurefire.failIfNoSpecifiedTests=false
+-Dsurefire.excludedGroups= -Dbench.sizes=10000,100000`; includes the filesystem walk and the Windows inspector,
+which were not changed):
+
+| Files | Index + analysis before -> after | Unchanged rescan before -> after | DB size before -> after |
+|---:|---:|---:|---:|
+| 10 000 | 4.03 s -> 3.42 s | 3.93 s -> 2.98 s | 12.6 -> 13.1 MiB |
+| 100 000 | 40.73 s -> 28.26 s | 47.74 s -> 23.52 s | 123.8 -> 129.3 MiB |
+
+Database layer only (`./mvnw -pl core test -Dtest=DbPerfBenchmark -Dsurefire.excludedGroups= -Dbench.n=100000`,
+100 000 synthetic rows, no filesystem), milliseconds:
+
+| Step | Before | After |
+|---|---:|---:|
+| initial upsert, 500-row batches | 10 164 | 6 340 - 7 460 (4 runs) |
+| unchanged re-upsert | 14 537 | 3 860 - 4 020 (4 runs) |
+| `AnalysisService.analyze` | 11 157 | 2 660 - 2 880 (3 runs) |
+| `filesPage` full paged walk (1000 rows/page) | 8 278 | 1 050 - 1 160 (3 runs) |
+| `replaceForRoot`, 10 000 candidates | 1 027 | 290 - 360 |
+| `totals()` after a write / repeat call | 512 / 512 | 134 - 144 / 0.0 |
+| `byCategory()` after a write / repeat call | 142 / 142 | 52 - 72 / 0.0 |
+| `largestCandidates(10)` | 54 | 0.1 |
+| `candidates.list(PENDING, SAVINGS, 200)` | 87 | 2.5 - 2.9 |
+| `countFiles()` | 103 | 1.6 - 7.7 |
+| `byRoot()`, `byActivity()`, search, `candidates.list(.., IDLE, ..)` | 105, 106, 156, 83 | unchanged within noise |
+
 ### Python worker throughput — `python -m idlestow.benchmarking --size-mib 64 --repeat 3`
 
 64 MiB synthetic files (likely served from the OS cache); median of 3 runs

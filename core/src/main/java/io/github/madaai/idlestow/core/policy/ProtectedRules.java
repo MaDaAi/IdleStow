@@ -51,6 +51,10 @@ public final class ProtectedRules {
             "desktop.ini", "thumbs.db", ".ds_store");
 
     private final List<Path> protectedDirs;
+    /** Pre-normalized form of {@link #protectedDirs}, so the per-file check does not re-normalize every directory. */
+    private final List<Path> protectedDirsNormalized;
+    /** Windows: lower-case "dir" and "dir\\" strings for case-insensitive prefix tests. */
+    private final List<String[]> protectedDirKeys;
     private final Set<String> platformDirNames;
     private final List<Path> cloudSyncRoots;
 
@@ -63,6 +67,16 @@ public final class ProtectedRules {
             for (String sub : List.of("AppData", "Library", ".config", ".local", ".cache")) dirs.add(h.resolve(sub));
         }
         this.protectedDirs = List.copyOf(dirs);
+        List<Path> norm = new ArrayList<>(dirs.size());
+        List<String[]> keys = new ArrayList<>(dirs.size());
+        for (Path d : dirs) {
+            Path n = PathUtil.normalize(d);
+            norm.add(n);
+            String ps = n.toString().toLowerCase(Locale.ROOT);
+            keys.add(new String[]{ps, ps.endsWith("\\") ? ps : ps + "\\"});
+        }
+        this.protectedDirsNormalized = List.copyOf(norm);
+        this.protectedDirKeys = List.copyOf(keys);
         this.platformDirNames = Set.copyOf(platform.protectedDirectoryNames().stream()
                 .map(s -> s.toLowerCase(Locale.ROOT)).toList());
         this.cloudSyncRoots = detectCloudSyncRoots(home);
@@ -85,8 +99,17 @@ public final class ProtectedRules {
     /** Returns the reason a path is mandatorily protected, or empty when it is not. */
     public Optional<String> protectionReason(Path path, boolean directory) {
         Path p = PathUtil.normalize(path);
-        for (Path d : protectedDirs) {
-            if (PathUtil.isWithin(p, d)) return Optional.of("Protected system or application location (" + d + ")");
+        // Same containment test as PathUtil.isWithin, with the file path normalized once instead of once per directory.
+        String lower = PathUtil.isWindows() ? p.toString().toLowerCase(Locale.ROOT) : null;
+        for (int i = 0; i < protectedDirs.size(); i++) {
+            boolean within;
+            if (lower != null) {
+                String[] k = protectedDirKeys.get(i);
+                within = lower.equals(k[0]) || lower.startsWith(k[1]);
+            } else {
+                within = p.startsWith(protectedDirsNormalized.get(i));
+            }
+            if (within) return Optional.of("Protected system or application location (" + protectedDirs.get(i) + ")");
         }
         for (Path part : p) {
             String n = part.toString().toLowerCase(Locale.ROOT);
