@@ -54,7 +54,8 @@ public final class UpdateDialogs {
         ((Button) d.getDialogPane().lookupButton(no)).setDefaultButton(false);
         Theme.style(d);
         Optional<ButtonType> r = d.showAndWait();
-        // Closing the dialog without choosing counts as "no" (the safe choice); it can be changed in Settings.
+        // The dialog can only be answered with one of its two buttons (it has no close/cancel button). Anything
+        // other than an explicit yes is treated as no; the choice can be changed in Settings.
         updates.setAutoCheck(r.isPresent() && r.get() == yes);
     }
 
@@ -167,13 +168,29 @@ public final class UpdateDialogs {
                 updates.cleanUpLeftovers();
                 return;
             }
-            try {
+            // Stop new work from starting, then make sure nothing is running before handing over.
+            boolean wasPaused = ctx.engine().paused();
+            ctx.engine().pauseAll(null);
+            Background.supply(() -> {
+                long active = ctx.engine().jobs().countActive();
+                if (active > 0) return active;
                 updates.launchInstaller(staged);
-                if (ctx.lifecycle() != null) ctx.lifecycle().exit();
-            } catch (java.io.IOException e) {
-                Dialogs.error(owner, "Update failed", Background.message(e) + "\n\nIdleStow was not changed.");
-                updates.cleanUpLeftovers();
-            }
+                return 0L;
+            }).whenComplete((active, e) -> {
+                if (e == null && active == 0) {
+                    if (ctx.lifecycle() != null) ctx.lifecycle().exit();
+                    return;
+                }
+                if (!wasPaused) ctx.engine().resumeAll();
+                if (e != null) {
+                    Dialogs.error(owner, "Update failed", Background.message(e) + "\n\nIdleStow was not changed.");
+                    updates.cleanUpLeftovers();
+                } else {
+                    Dialogs.warning(owner, "Update", "IdleStow is still finishing " + Fmt.plural(active, "job")
+                            + ". Try again from Settings > General > Updates in a moment.");
+                    updates.cleanUpLeftovers();
+                }
+            });
         });
         d.show();
     }

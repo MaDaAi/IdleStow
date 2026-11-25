@@ -149,7 +149,15 @@ public final class UpdateService {
     public Optional<String> installUnsupported() {
         if (ctx.args().readOnly()) return Optional.of("IdleStow was started in read-only mode, so it does not"
                 + " change its own files either. Download the new version from GitHub instead.");
-        return WindowsUpdateInstaller.unsupportedReason();
+        Optional<String> reason = WindowsUpdateInstaller.unsupportedReason();
+        if (reason.isPresent()) return reason;
+        Path app = WindowsUpdateInstaller.appDir().orElseThrow();
+        if (WindowsUpdateInstaller.dataInsideApp(app, ctx.dataDir())) {
+            return Optional.of("IdleStow's data folder (" + ctx.dataDir() + ") is inside its program folder, so an"
+                    + " automatic update could move it. Download the new version from GitHub and keep the data"
+                    + " folder where it is.");
+        }
+        return Optional.empty();
     }
 
     Path workDir() {
@@ -167,14 +175,37 @@ public final class UpdateService {
         });
     }
 
-    /** Hands over to the swap script; the caller exits IdleStow right after. */
+    /**
+     * Backs up the database (so data from before the update is kept even if the new version migrates it), then
+     * hands over to the swap script. The caller exits IdleStow right after. Must run off the FX thread.
+     */
     public void launchInstaller(UpdatePackage.Staged staged) throws java.io.IOException {
         Path app = WindowsUpdateInstaller.appDir().orElseThrow(() -> new java.io.IOException("No application folder"));
         Path dataDir = ctx.args().dataDir() == null ? null : ctx.dataDir();
+        backupDatabase(AppContext.version());
         WindowsUpdateInstaller.launch(staged, app, workDir(), dataDir);
         // The new version starts fresh: no need to contact GitHub again right away.
         ctx.prefs().put(KEY_LAST, (double) System.currentTimeMillis());
         ctx.prefs().save();
+    }
+
+    /** Consistent copy of the database via SQLite's VACUUM INTO (safe while IdleStow runs). */
+    void backupDatabase(String fromVersion) throws java.io.IOException {
+        Path target = workDir().resolve("idlestow-before-update-from-" + fromVersion + ".db");
+        try {
+            java.nio.file.Files.createDirectories(workDir());
+            java.nio.file.Files.deleteIfExists(target);
+            ctx.engine().database().read(c -> {
+                try (var st = c.prepareStatement("VACUUM INTO ?")) {
+                    st.setString(1, target.toString());
+                    st.execute();
+                }
+                return null;
+            });
+            LOG.info("Database backed up to {} before updating", target);
+        } catch (java.sql.SQLException e) {
+            throw new java.io.IOException("Could not back up IdleStow's database before updating: " + e.getMessage(), e);
+        }
     }
 
     /** Removes a staging folder left behind by a cancelled or failed update (only IdleStow-created ones). */

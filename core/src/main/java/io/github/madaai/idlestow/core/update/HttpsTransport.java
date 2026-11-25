@@ -30,7 +30,7 @@ public final class HttpsTransport implements UpdateTransport {
 
     public HttpsTransport(String appVersion) {
         this.client = HttpClient.newBuilder()
-                .followRedirects(HttpClient.Redirect.NORMAL) // never follows HTTPS -> HTTP
+                .followRedirects(HttpClient.Redirect.NEVER) // redirects are followed by hand, each hop checked
                 .connectTimeout(Duration.ofSeconds(15))
                 .build();
         this.userAgent = "IdleStow-Updater/" + appVersion;
@@ -52,13 +52,26 @@ public final class HttpsTransport implements UpdateTransport {
                 .GET().build();
     }
 
+    /** Sends a GET, following up to 5 redirects; every hop must pass {@link #requireAllowed} before it is contacted. */
+    private HttpResponse<InputStream> send(URI uri, Duration timeout) throws IOException, InterruptedException {
+        URI next = uri;
+        for (int hop = 0; hop <= 5; hop++) {
+            requireAllowed(next);
+            HttpResponse<InputStream> r = client.send(request(next, timeout), HttpResponse.BodyHandlers.ofInputStream());
+            int code = r.statusCode();
+            if (code != 301 && code != 302 && code != 303 && code != 307 && code != 308) return r;
+            String loc = r.headers().firstValue("Location").orElse(null);
+            r.body().close();
+            if (loc == null) throw new IOException("Redirect without a location from " + next.getHost());
+            next = next.resolve(loc);
+        }
+        throw new IOException("Too many redirects");
+    }
+
     @Override
     public byte[] get(URI uri, long maxBytes) throws IOException {
-        requireAllowed(uri);
         try {
-            HttpResponse<InputStream> r = client.send(request(uri, Duration.ofSeconds(30)),
-                    HttpResponse.BodyHandlers.ofInputStream());
-            requireAllowed(r.uri());
+            HttpResponse<InputStream> r = send(uri, Duration.ofSeconds(30));
             try (InputStream in = r.body()) {
                 if (r.statusCode() != 200) throw new IOException("GitHub answered HTTP " + r.statusCode());
                 byte[] body = in.readNBytes((int) Math.min(Integer.MAX_VALUE - 8, maxBytes + 1));
@@ -74,11 +87,8 @@ public final class HttpsTransport implements UpdateTransport {
     @Override
     public void download(URI uri, OutputStream out, long maxBytes, LongConsumer progress, BooleanSupplier cancelled)
             throws IOException {
-        requireAllowed(uri);
         try {
-            HttpResponse<InputStream> r = client.send(request(uri, Duration.ofMinutes(30)),
-                    HttpResponse.BodyHandlers.ofInputStream());
-            requireAllowed(r.uri());
+            HttpResponse<InputStream> r = send(uri, Duration.ofMinutes(30));
             try (InputStream in = r.body()) {
                 if (r.statusCode() != 200) throw new IOException("Download failed: HTTP " + r.statusCode());
                 byte[] buf = new byte[1 << 16];

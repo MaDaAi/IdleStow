@@ -180,6 +180,81 @@ IdleStow was started with `--read-only`. Start it again without that flag to all
 A second copy of IdleStow asks the running copy to show its window, then exits. If no window appears, look for IdleStow
 in the notification area, or end the process in Task Manager and start it again.
 
+## Troubleshooting updates
+
+Updates are optional. If you said no, or never checked, none of this applies. An update never changes your data
+folder (`%LOCALAPPDATA%\IdleStow`) or your files.
+
+### Cannot reach GitHub
+
+**Message:** *"Could not reach GitHub: ..."* (from **Check for updates**). An automatic check that fails is only
+written to the log.
+
+**Cause:** IdleStow has no connection to `api.github.com` or to GitHub's download hosts. The reason can be no internet
+connection, or a firewall, proxy or security product that blocks them.
+
+**What to do:** check your internet connection and try **Check for updates** again later. If a firewall or proxy is in
+use, allow `api.github.com` and `github.com`. You can also download the release yourself from the GitHub releases page.
+Nothing on your computer changes when the check fails.
+
+### Checksum mismatch
+
+**Message:** *"The download did not match its published checksum, so it was discarded."* followed by *"IdleStow was not
+changed."*
+
+**Cause:** the downloaded zip does not match the `SHA256SUMS.txt` published with the release. The download may have been
+damaged in transit, or the file may have been altered.
+
+**What to do:** nothing needs to be undone. IdleStow discards the download and leaves the installed version as it was.
+Try **Install update** again later. If the check fails again, do not run the download. Download the release yourself from
+the GitHub releases page and compare its SHA-256 with the checksum file, or report the problem (see
+[SECURITY.md](../../SECURITY.md)).
+
+### The folder cannot be updated automatically
+
+**Message:** *"IdleStow cannot write to ..."* or *"This copy of IdleStow was not started from the portable package, so it
+cannot update..."*. The dialog offers **Open download page** instead of **Install update**.
+
+**Cause:** automatic installation needs the portable package in a folder you can write to. A folder such as `Program
+Files` is not writable for normal users. Installed or non-portable copies are not supported either.
+
+**What to do:** extract the portable zip into a folder you can write to, such as a folder in `Documents`, and start
+`IdleStow\IdleStow.exe` from there. Or choose **Open download page** and replace the folder yourself. Automatic
+installation is also not offered in read-only mode (`--read-only`). Start IdleStow without that flag to allow it.
+
+### Install update is refused
+
+**Message:** *"IdleStow is still working (N jobs). Wait until it finishes, or pause it, then install the update."*
+
+**Cause:** the update would replace the program while jobs are running.
+
+**What to do:** wait for the jobs in **Jobs** to finish, or press **Pause**, and then choose **Install update** again.
+
+### Roll back to the previous version
+
+Each successful update keeps the previous version in a folder next to the app, named after the app folder with
+`.previous` added (for example `IdleStow.previous`). To go back by hand:
+
+1. Close IdleStow. Check the tray as well.
+2. Rename the current app folder (for example `IdleStow`) to another name, such as `IdleStow.new`.
+3. Rename `IdleStow.previous` back to the original name (`IdleStow`).
+4. Start `IdleStow\IdleStow.exe`.
+
+IdleStow may then offer the newer version again. Choose **Skip this version** to stop automatic prompts for it.
+A manual **Check for updates** still shows it.
+
+### Where the update log is
+
+The installation script writes its log to:
+
+```text
+%LOCALAPPDATA%\IdleStow\updates\update.log
+```
+
+Look here for *Previous version restored* (the update failed and the old version was put back) or *Could not restore the
+previous version*. In the second case, follow the rollback steps above by hand. Automatic check failures are also recorded
+in the main log, `%LOCALAPPDATA%\IdleStow\logs\idlestow.log` (see [Where the logs are](#where-the-logs-are)).
+
 ## Where the logs are
 
 Logs are in:

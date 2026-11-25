@@ -8,7 +8,8 @@ For undoing an optimization see [Recovery](recovery.md). For errors see [Trouble
 * **Windows 11 with NTFS** is the supported and tested configuration. Windows 10 is implemented but not verified.
   Linux and macOS are not supported for use yet. See [platform compatibility](../platform-compatibility.md).
 * Java and Python are **bundled**. You do not install them.
-* IdleStow runs locally. It needs no account and no network connection.
+* IdleStow needs no account. It works without a network connection. The only thing that uses the internet is the
+  optional update check (see [Updates](#updates)).
 
 ## Install
 
@@ -38,6 +39,8 @@ there is what lists them.
    **Agree and continue**. **Exit** closes IdleStow without changing anything. You are asked again only if the
    terms change.
 2. **Simple view.** IdleStow then opens its Simple view.
+3. **Update question.** When the window first appears, IdleStow asks once: *Check for updates automatically?* Choose
+   **Yes, check automatically** or **No, I'll check myself**. Closing the question counts as No. See [Updates](#updates).
 
 ## The Simple view
 
@@ -222,6 +225,7 @@ to the default.
 | General | Theme | Dark (or Light) |
 | General | When the window is closed | Exit IdleStow |
 | General | Notify when jobs finish or fail | On |
+| General | Check for updates automatically (once a day) | Set by your answer to the first-run question. Closing it counts as No. |
 | Monitoring | Rescan interval (used only with background operation) | Every 6 hours |
 | Monitoring | Watch folders for changes (applies with background operation) | On |
 | Monitoring | Exclusions (path, glob, extension, size, category, volume) | None |
@@ -294,10 +298,31 @@ Long-running background scheduling and the tray menu have only been checked with
 Start IdleStow with `--read-only` to index and recommend without ever changing a file. A banner says so. There
 is no setting for this; start IdleStow without the flag to return to normal operation.
 
+## Updates
+
+IdleStow can check for new versions. This is the only part of IdleStow that uses the internet.
+
+* **Settings > General > Updates** shows your version and when IdleStow last checked. Turn on or off
+  **Check for updates automatically (once a day)** at any time. **Check for updates** makes one request on demand.
+* **If yes:** IdleStow makes at most one request a day to GitHub's API (`api.github.com`) for the latest release.
+  The request contains a generic program name with the version, and what any web request contains, such as your IP
+  address. Nothing else is sent. If no newer version exists, nothing else happens.
+* **If a newer version exists:** a banner, *IdleStow X is available*, appears above the Simple and Advanced views,
+  with **See what's new** and **Later**. A tray notification also appears. The dialog shows the release notes and
+  offers **Install update**, **Later** and **Skip this version**. Skipping stops automatic checks from announcing
+  that version again. A manual check still shows it.
+* **Install update** is refused while jobs are running. Wait for them to finish, or pause them first. IdleStow then
+  downloads the release from GitHub and checks it before anything changes. It asks **Restart now**, closes, swaps in
+  the new version and starts it. If anything fails, the previous version is put back and started.
+* Automatic installation works only for the portable package, when the folder containing it is writable (not, for
+  example, `Program Files`), and not in read-only mode. Otherwise the dialog offers **Open download page**.
+* Your data folder (`%LOCALAPPDATA%\IdleStow`) and your files are never touched by an update.
+* For problems and rolling back, see [Troubleshooting updates](troubleshooting.md#troubleshooting-updates).
+
 ## Privacy
 
-* IdleStow has no accounts, no telemetry and no cloud service. No network code was found in the application
-  or worker sources.
+* IdleStow has no accounts, no telemetry and no cloud service. The only network request is the optional update
+  check. It never sends file names, file contents or statistics.
 * Indexing reads file names, sizes and timestamps, never file contents. Analysis reads a sample of a
   candidate's content to estimate savings, and an optimization reads the files it changes to verify them.
 * Data lives in `%LOCALAPPDATA%\IdleStow`: the database (index, history, settings, recovery records), logs,

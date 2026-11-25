@@ -3,6 +3,19 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses semantic versioning.
 
+## [0.1.1] - Unreleased
+
+### Added
+- In-app updater, opt-in. On first run IdleStow asks whether to check for updates automatically; closing the
+  question counts as no. When on, it makes at most one request a day to GitHub's API for the latest release.
+  A newer version shows a banner, a tray notification and a dialog with the release notes. Installing downloads
+  the release, checks its SHA-256 against the published checksum file, and restarts into the new version. It is
+  refused while jobs are running and works for the portable package only. The updater is the only part of
+  IdleStow that uses the internet. See the Updates section of `README.md`.
+
+### Changed
+- Performance improvements (details to be added).
+
 ## [0.1.0] - Unreleased
 
 ### Added

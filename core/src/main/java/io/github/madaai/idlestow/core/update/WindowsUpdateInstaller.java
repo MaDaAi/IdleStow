@@ -51,6 +51,28 @@ public final class WindowsUpdateInstaller {
         return Optional.empty();
     }
 
+    /**
+     * True when {@code dataDir} lies inside the application folder or its update/backup siblings. Updating would
+     * then move (and on a later update delete) IdleStow's database and recovery records, so it is refused.
+     */
+    public static boolean dataInsideApp(Path appDir, Path dataDir) {
+        if (dataDir == null) return false;
+        Path d = real(dataDir);
+        for (Path p : new Path[]{appDir, stagingDir(appDir), backupDir(appDir)}) {
+            if (d.startsWith(real(p))) return true;
+        }
+        return false;
+    }
+
+    private static Path real(Path p) {
+        Path a = p.toAbsolutePath().normalize();
+        try {
+            return a.toRealPath();
+        } catch (IOException e) {
+            return a;
+        }
+    }
+
     /** The staging folder for a new version: next to the application, so the final move is a rename. */
     public static Path stagingDir(Path appDir) {
         return appDir.resolveSibling(appDir.getFileName() + ".update");
@@ -69,6 +91,10 @@ public final class WindowsUpdateInstaller {
             throws IOException {
         Path stageRoot = staged.folder().getParent();
         if (!stageRoot.equals(stagingDir(appDir))) throw new IOException("Unexpected staging location");
+        if (dataInsideApp(appDir, dataDir)) {
+            throw new IOException("IdleStow's data folder is inside its program folder, so updating could move it."
+                    + " Move the data folder elsewhere (--data-dir) or update by hand.");
+        }
         Files.createDirectories(workDir);
         Path script = workDir.resolve("apply-update.ps1");
         Files.writeString(script, SCRIPT, StandardCharsets.UTF_8);
@@ -87,8 +113,20 @@ public final class WindowsUpdateInstaller {
             cmd.add("-DataDir");
             cmd.add(dataDir.toString());
         }
-        new ProcessBuilder(cmd).redirectErrorStream(true)
+        Process p = new ProcessBuilder(cmd).redirectErrorStream(true)
                 .redirectOutput(ProcessBuilder.Redirect.appendTo(log.toFile())).start();
+        // The script waits for IdleStow to exit, so it must still be running; if PowerShell was blocked (for
+        // example by policy) it ends at once and IdleStow must not exit.
+        try {
+            if (p.waitFor(1500, java.util.concurrent.TimeUnit.MILLISECONDS)) {
+                throw new IOException("The update helper could not run (exit code " + p.exitValue() + "). IdleStow"
+                        + " was not changed. See " + log + ".");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            p.destroy();
+            throw new IOException("Interrupted while starting the update helper", e);
+        }
     }
 
     static final String SCRIPT = """
@@ -100,24 +138,38 @@ public final class WindowsUpdateInstaller {
             function Start-IdleStow {
                 $exe = Join-Path $AppDir 'IdleStow.exe'
                 if (-not (Test-Path -LiteralPath $exe)) { return }
-                if ($DataDir) { Start-Process -FilePath $exe -ArgumentList @('--data-dir', ('"' + $DataDir + '"')) }
-                else { Start-Process -FilePath $exe }
+                if ($DataDir) {
+                    # Windows argument quoting: backslashes before the closing quote must be doubled.
+                    $q = '"' + ($DataDir -replace '(\\\\+)$', '$1$1') + '"'
+                    Start-Process -FilePath $exe -ArgumentList @('--data-dir', $q)
+                } else { Start-Process -FilePath $exe }
             }
+            $Marker = '.idlestow-previous'
             $moved = $false
             try {
                 $p = Get-Process -Id $WaitPid -ErrorAction SilentlyContinue
-                if ($p -and -not $p.WaitForExit(180000)) { Write-UpdateLog 'IdleStow did not exit; update not applied'; exit 1 }
+                if ($p -and -not $p.WaitForExit(180000)) {
+                    Write-UpdateLog 'IdleStow did not exit; update not applied'
+                    Start-IdleStow
+                    exit 1
+                }
                 if (Test-Path -LiteralPath $BackupDir) {
-                    if (Test-Path -LiteralPath (Join-Path $BackupDir 'IdleStow.exe')) {
-                        Remove-Item -LiteralPath $BackupDir -Recurse -Force
-                    } else { Write-UpdateLog "$BackupDir exists and is not an IdleStow folder; update not applied"; exit 1 }
+                    # Only delete a backup this updater made (marker file); never a folder the user created.
+                    if (Test-Path -LiteralPath (Join-Path $BackupDir $Marker)) {
+                        [System.IO.Directory]::Delete($BackupDir, $true)
+                    } else {
+                        Write-UpdateLog "$BackupDir exists and was not made by the updater; update not applied"
+                        Start-IdleStow
+                        exit 1
+                    }
                 }
                 for ($i = 0; $i -lt 40; $i++) {
                     try { Rename-Item -LiteralPath $AppDir -NewName (Split-Path -Leaf $BackupDir); $moved = $true; break }
                     catch { if ($i -eq 39) { throw } ; Start-Sleep -Milliseconds 500 }
                 }
-                Move-Item -LiteralPath $NewDir -Destination $AppDir
-                Remove-Item -LiteralPath $StageRoot -Recurse -Force -ErrorAction SilentlyContinue
+                Set-Content -LiteralPath (Join-Path $BackupDir $Marker) -Value 'Previous IdleStow version, kept by the updater.'
+                [System.IO.Directory]::Move($NewDir, $AppDir)
+                try { [System.IO.Directory]::Delete($StageRoot, $true) } catch { Write-UpdateLog ('Could not remove ' + $StageRoot + ': ' + $_) }
                 Write-UpdateLog "Update applied; previous version kept in $BackupDir"
                 Start-IdleStow
             } catch {

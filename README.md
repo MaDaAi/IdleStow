@@ -19,7 +19,8 @@ It understands that one folder can contain both today's work and last year's not
 on its own evidence, and anything uncertain is left alone.
 
 IdleStow is not a disk cleaner. It never deletes your files on its own, it works only inside folders you
-authorize, it runs fully offline, and every optimization can be undone.
+authorize, and every optimization can be undone. Its only use of the internet is an optional update check,
+which you can turn on or off (see [Updates](#updates)).
 
 > Status: **0.1.0, first release candidate.** Windows 10/11 on NTFS is the supported platform. Linux and
 > macOS adapters exist but are **not verified** (see [compatibility](#supported-platforms)).
@@ -117,11 +118,33 @@ just by extension. If compression would not save at least one cluster, IdleStow 
 - Every operation is journaled. After a crash, IdleStow completes it, rolls it back, or flags it for
   review. It never silently deletes anything.
 - Approvals are tied to an exact plan, expire after 24 hours, and can be used once.
-- Everything runs locally: no accounts, no telemetry, no network access and no AI service.
+- No accounts, no telemetry and no AI service. The only network request is the optional update check, which
+  never sends file names, file contents or statistics. Files are always handled on your computer.
 
 Details: [safety model](docs/architecture/safety-model.md) ·
 [recovery state machine](docs/architecture/recovery-state-machine.md) ·
 [threat model](docs/security/threat-model.md) · [recovery guide](docs/user-guide/recovery.md).
+
+## Updates
+
+IdleStow asks once, the first time its window appears, whether to check for updates automatically. You can
+answer no, and you can change the answer at any time in **Settings > General > Updates**.
+
+- **If you say yes:** IdleStow makes at most one request a day to GitHub's API (`api.github.com`) to ask for the
+  latest release. If no newer version exists, nothing else happens.
+- **If a newer version exists:** a banner appears above the Simple and Advanced views, and a tray notification
+  is shown. You can read the release notes, install the update, skip that version, or decide later.
+- **Installing** downloads the release from GitHub, checks its SHA-256 against the published checksum file, and
+  only then restarts IdleStow into the new version. Installation is refused while jobs are running. It works
+  only for the portable package, from a folder you can write to, and not in `--read-only` mode. Otherwise the
+  dialog offers a download page instead.
+- **Trust:** the update check and download use HTTPS to GitHub only. The release is not code-signed. See
+  [SECURITY.md](SECURITY.md#updates).
+
+The updater has unit tests. An end-to-end install on a real portable copy is not yet recorded in
+[TEST_RESULTS.md](docs/development/TEST_RESULTS.md).
+
+Troubleshooting and rolling back are in the [user guide](docs/user-guide/troubleshooting.md#troubleshooting-updates).
 
 ## Architecture
 
@@ -185,5 +208,6 @@ Copyright 2026 Mansoor Alakoozai. [Apache License 2.0](LICENSE). Third-party com
 
 - [Terms of Use](TERMS.md): IdleStow is free and provided as is, without warranty. Keep your own backups;
   compression is not a backup. The app asks you to agree to these terms the first time it starts.
-- [Privacy notice](PRIVACY.md): IdleStow collects nothing; everything stays on your computer.
+- [Privacy notice](PRIVACY.md): IdleStow collects no data. Your files stay on your computer. The optional update
+  check is the only network use.
 - [Security policy](SECURITY.md): how to report a vulnerability privately.

@@ -63,4 +63,25 @@ class WindowsUpdateInstallerTest {
             else System.setProperty("jpackage.app-path", old);
         }
     }
+
+    @Test
+    void dataFolderInsideTheAppOrItsSiblingsIsDetected(@org.junit.jupiter.api.io.TempDir Path tmp) {
+        Path app = tmp.resolve("IdleStow");
+        assertTrue(WindowsUpdateInstaller.dataInsideApp(app, app.resolve("data")));
+        assertTrue(WindowsUpdateInstaller.dataInsideApp(app, app));
+        assertTrue(WindowsUpdateInstaller.dataInsideApp(app, tmp.resolve("IdleStow.previous").resolve("data")));
+        assertTrue(WindowsUpdateInstaller.dataInsideApp(app, tmp.resolve("IdleStow.update")));
+        assertFalse(WindowsUpdateInstaller.dataInsideApp(app, tmp.resolve("IdleStowData")));
+        assertFalse(WindowsUpdateInstaller.dataInsideApp(app, tmp.resolve("other").resolve("IdleStow")));
+        assertFalse(WindowsUpdateInstaller.dataInsideApp(app, null));
+    }
+
+    @Test
+    void scriptOnlyDeletesMarkedBackupsAndUsesNoWildcardMoves() {
+        String s = WindowsUpdateInstaller.SCRIPT;
+        assertTrue(s.contains("$Marker = '.idlestow-previous'"));
+        assertTrue(s.contains("Test-Path -LiteralPath (Join-Path $BackupDir $Marker)"));
+        assertFalse(s.contains("Move-Item"), "Move-Item -Destination interprets wildcards");
+        assertFalse(s.contains("Invoke-Expression"));
+    }
 }
