@@ -6,11 +6,9 @@ import hashlib
 import json
 import os
 import stat
-import tarfile
 import time
-import zipfile
 from datetime import UTC, datetime
-from typing import Any, BinaryIO
+from typing import TYPE_CHECKING, Any, BinaryIO
 
 from .. import TOOL_ID, _optional
 from ..context import Context
@@ -18,6 +16,9 @@ from ..errors import Code, WorkerError
 from ..fsutil import CHUNK_SIZE, fs_path, lexists, remove_quiet
 from ..names import MANIFEST_MAX_BYTES, MANIFEST_NAME, validate_entry_name
 from .levels import FORMATS, LEVEL_NAMES, ZIP_LEVELS, ZSTD_LEVELS
+
+if TYPE_CHECKING:
+    import tarfile
 
 _ZIP64_LIMIT = (1 << 31) - 1
 _DOS_MIN = (1980, 1, 1, 0, 0, 0)
@@ -81,6 +82,8 @@ def _write_zip(
     level: int,
     finish_manifest: Any,
 ) -> None:
+    import zipfile  # lazy: keeps worker start-up fast
+
     with zipfile.ZipFile(
         out, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=level, allowZip64=True
     ) as zf:
@@ -101,6 +104,8 @@ def _write_zip(
 
 
 def _tar_info(name: str, size: int, mtime: float) -> tarfile.TarInfo:
+    import tarfile  # lazy: keeps worker start-up fast
+
     info = tarfile.TarInfo(name)
     info.size = size
     info.mode = 0o644
@@ -120,17 +125,27 @@ def _write_tar_zst(
     level: int,
     finish_manifest: Any,
 ) -> None:
+    import tarfile  # lazy: keeps worker start-up fast
+
     zstd = _optional.zstandard()
     assert zstd is not None  # noqa: S101 - checked by the caller
-    cctx = zstd.ZstdCompressor(level=level)
+    cctx = zstd.ZstdCompressor(level=level, threads=1)
     with cctx.stream_writer(out, closefd=False) as writer:
-        with tarfile.open(fileobj=writer, mode="w|", format=tarfile.PAX_FORMAT) as tf:
+        with tarfile.open(
+            fileobj=writer, mode="w|", format=tarfile.PAX_FORMAT, bufsize=CHUNK_SIZE
+        ) as tf:
             tf.copybufsize = CHUNK_SIZE
             tf.addfile(_tar_info(entry_name, size, mtime), reader)  # type: ignore[arg-type]
             if reader.count != size:
                 raise WorkerError(Code.INTEGRITY_FAILURE, "source changed while being archived")
             manifest = finish_manifest()
             tf.addfile(_tar_info(MANIFEST_NAME, len(manifest), time.time()), _BytesReader(manifest))  # type: ignore[arg-type]
+
+
+def _large_zip_error() -> type[Exception]:
+    import zipfile  # lazy: keeps worker start-up fast
+
+    return zipfile.LargeZipFile
 
 
 class _BytesReader:
@@ -207,7 +222,7 @@ def create_archive(
         if fail_if_larger and archive_size >= size:
             raise WorkerError(Code.NO_BENEFIT, "archive would not be smaller than the source")
         ok = True
-    except zipfile.LargeZipFile as exc:
+    except _large_zip_error() as exc:
         raise WorkerError(Code.LIMIT_EXCEEDED, str(exc)) from exc
     finally:
         if created and not ok:

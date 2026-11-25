@@ -7,7 +7,7 @@ import os
 import stat
 import zlib
 from collections import Counter
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .. import _optional
 from ..compression.levels import LEVEL_NAMES, ZIP_LEVELS, ZSTD_LEVELS
@@ -16,6 +16,9 @@ from ..errors import Code, WorkerError
 from ..fsutil import fs_path
 from .formats import HEAD_BYTES, detect_format
 from .sampling import clamp_sample_bytes, plan_sample, shannon_entropy
+
+if TYPE_CHECKING:
+    from concurrent.futures import Future
 
 DEFAULT_MAX_SAMPLE = 4 * 1024 * 1024
 DEFAULT_CHUNK = 256 * 1024
@@ -60,16 +63,28 @@ def estimate_compressibility(
     zstd_comp = zstd.ZstdCompressor(level=ZSTD_LEVELS[level]) if zstd is not None else None
     zip_level = ZIP_LEVELS[level]
 
+    from concurrent.futures import ThreadPoolExecutor  # lazy: keeps worker start-up fast
+
     counts: Counter[int] = Counter()
     sampled = zip_bytes = zstd_bytes = ntfs_orig = ntfs_comp = 0
     head = b""
 
-    with open(fs_path(path), "rb") as handle:
+    def zip_size(data: bytes) -> int:
+        return len(zlib.compress(data, zip_level))
+
+    def zstd_size(data: bytes) -> int:
+        assert zstd_comp is not None  # noqa: S101
+        return len(zstd_comp.compress(data))
+
+    # zlib and zstd release the GIL, so the compressors run on helper threads while the main thread
+    # builds the byte histogram (the single most expensive pure-Python step). Sums are order independent.
+    with open(fs_path(path), "rb") as handle, ThreadPoolExecutor(max_workers=3) as pool:
         st = os.fstat(handle.fileno())
         if not stat.S_ISREG(st.st_mode):
             raise WorkerError(Code.BAD_REQUEST, "path is not a regular file")
         file_size = st.st_size
         plan, full_read = plan_sample(file_size, max_sample, chunk)
+        planned_total = sum(n for _, n in plan)
         for offset, length in plan:
             ctx.check()
             handle.seek(offset)
@@ -79,14 +94,17 @@ def estimate_compressibility(
             if offset == 0:
                 head = data[:HEAD_BYTES]
             sampled += len(data)
-            counts.update(data)
-            zip_bytes += len(zlib.compress(data, zip_level))
+            jobs: list[Future[Any]] = [pool.submit(zip_size, data), pool.submit(_ntfs_allocation, data)]
             if zstd_comp is not None:
-                zstd_bytes += len(zstd_comp.compress(data))
-            o, c = _ntfs_allocation(data)
+                jobs.append(pool.submit(zstd_size, data))
+            counts.update(data)
+            zip_bytes += jobs[0].result()
+            o, c = jobs[1].result()
             ntfs_orig += o
             ntfs_comp += c
-            ctx.progress(sampled, sum(n for _, n in plan), "sampling")
+            if zstd_comp is not None:
+                zstd_bytes += jobs[2].result()
+            ctx.progress(sampled, planned_total, "sampling")
 
     if sampled == 0:
         zip_ratio = 1.0
