@@ -14,7 +14,16 @@ All notable changes to this project are documented here. The format follows
   IdleStow that uses the internet. See the Updates section of `README.md`.
 
 ### Changed
-- Performance improvements (details to be added).
+- Faster indexing and analysis: 100,000 synthetic files index in 28.3 s instead of 40.7 s, and an unchanged
+  rescan takes 23.5 s instead of 47.7 s (single benchmark runs on the development PC). New database indexes
+  (migration V2) and cached dashboard totals make the Overview and Simple view cheap to refresh.
+- Lighter UI: the Simple view and Overview only redraw what changed, the tray menu and status bar no longer
+  query the database on the UI thread or while hidden, and the engine starts while the window opens
+  (first window about 1.8 s instead of 2.2 s).
+- Python worker starts in about 175 ms instead of about 260 ms; tar.zst archives are created 30-55% faster.
+- Smaller, faster package: the download is about 71 MB instead of 79 MB (trimmed Java runtime and native
+  libraries for other operating systems removed), and the packaged app starts in about 2.2 s instead of
+  3.4 s (class-data sharing and a lighter garbage collector).
 
 ## [0.1.0] - Unreleased
 

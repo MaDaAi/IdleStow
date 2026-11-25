@@ -59,7 +59,7 @@ def test_roundtrip_create_verify_extract(tmp_path: Path, fmt: str, level: str):
     assert ver["ok"] and ver["sha256"] == sha(COMPRESSIBLE) and ver["size"] == len(COMPRESSIBLE)
     man = ver["manifest"]
     assert man["format_version"] == 1 and man["entry_name"] == "report.txt" and man["job"] == "j-1"
-    assert man["source_mtime_ns"] == src.stat().st_mtime_ns and man["tool"] == "idlestow-worker/0.1.0"
+    assert man["source_mtime_ns"] == src.stat().st_mtime_ns and man["tool"] == "idlestow-worker/0.1.1"
     assert man["created_utc"].endswith("Z")
     out = tmp_path / "restored.txt"
     ex = extract_archive(str(dest), fmt, "report.txt", str(out), sha(COMPRESSIBLE), len(COMPRESSIBLE))

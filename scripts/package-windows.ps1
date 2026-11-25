@@ -22,7 +22,7 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $Root = Split-Path -Parent $PSScriptRoot
-$Version = '0.1.0'
+$Version = '0.1.1'
 $PyVersion = '3.12.10'
 $PyZipName = "python-$PyVersion-embed-amd64.zip"
 $PyUrl = "https://www.python.org/ftp/python/$PyVersion/$PyZipName"
