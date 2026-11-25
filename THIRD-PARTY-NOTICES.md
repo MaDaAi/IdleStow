@@ -30,6 +30,13 @@ projects:
 
 The IdleStow maintainer intends to attach these source archives to each GitHub release that ships binaries.
 
+## Modified components
+
+To keep the download small, the Windows package removes the native libraries for other operating systems
+(Linux, macOS and others) from the SQLite JDBC and JNA jars. No other part of those jars, and no Windows
+library, is changed. Their unmodified originals are available from Maven Central under the versions listed
+above.
+
 Test-only dependencies (not distributed): JUnit 5 (EPL-2.0), Mockito (MIT), pytest (MIT), Ruff (MIT).
 
 Exact versions are pinned in `pom.xml`, `python/pyproject.toml` and `scripts/package-windows.ps1`.
