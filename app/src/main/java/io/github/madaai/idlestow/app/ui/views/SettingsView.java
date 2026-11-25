@@ -810,7 +810,8 @@ public final class SettingsView extends BaseView {
         Button clearLogs = UI.button("Clear diagnostic logs...", Icons.X, () -> clearLogs(logs));
         return page("Privacy", null,
                 box("Everything stays on this computer", UI.wrapped("IdleStow has no accounts, no cloud service and no"
-                        + " telemetry. It never uploads file names, contents or statistics. The index, history and"
+                        + " telemetry. It never uploads file names, contents or statistics. Its only internet use is the"
+                        + " update check you control in General > Updates. The index, history and"
                         + " settings live in the data folder below. Diagnostic logs may contain file paths but never"
                         + " file contents.", "detail-value"),
                         UI.wrapped("Data folder: " + ctx.dataDir(), "mono"), UI.wrapped("Logs: " + logs, "mono"),

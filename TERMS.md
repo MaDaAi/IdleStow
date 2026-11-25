@@ -1,6 +1,6 @@
 # IdleStow Terms of Use
 
-_Version: 2026-11-24 · Applies to IdleStow 0.1.0 and later until replaced_
+_Version: 2026-11-25 · Applies to IdleStow 0.1.1 and later until replaced_
 
 > **Draft. This document has not been reviewed by a lawyer.** It is written in plain language to explain the
 > conditions that already come with the free software license, and the risks of using a tool that changes how
@@ -25,6 +25,14 @@ save disk space. Depending on your choices it uses Windows (NTFS) transparent co
 tar.zst archives. Every change is verified, recorded and designed to be undoable. See the
 [user guide](docs/user-guide/README.md) and the [safety model](docs/architecture/safety-model.md) for how this
 works and what its limits are.
+
+## 2a. Updates
+
+If you allow it, IdleStow checks GitHub for newer versions, and it can download and install an update when you
+choose to. An update replaces IdleStow's own program folder (never your files or IdleStow's data folder) after
+checking the download against the checksums published with the release. The previous version is kept next to it
+as `IdleStow.previous`. Updates are provided on the same terms as the rest of IdleStow, with no promise that
+updates will be made or will work. You can turn automatic checks off at any time.
 
 ## 3. Your responsibilities
 

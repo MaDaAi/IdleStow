@@ -30,7 +30,7 @@ import java.util.Optional;
  */
 public final class Legal {
     /** Must match the "Version" line in TERMS.md. Change both together whenever the terms change materially. */
-    public static final String TERMS_VERSION = "2026-11-24";
+    public static final String TERMS_VERSION = "2026-11-25";
 
     static final String KEY_VERSION = "legal.termsAcceptedVersion";
     static final String KEY_AT = "legal.termsAcceptedAt";
@@ -106,8 +106,9 @@ public final class Legal {
                         "IdleStow changes how files are stored, and every change is checked and can be undone. Still,"
                                 + " no software is perfect. Compression is not a backup: back up anything important"
                                 + " before you use IdleStow."),
-                point(Icons.LOCK, "Nothing leaves your computer",
-                        "No accounts, no internet connection, no telemetry. See the Privacy notice."),
+                point(Icons.LOCK, "Your data stays on your computer",
+                        "No accounts, no telemetry, and your files never leave your computer. The only internet use is"
+                                + " checking GitHub for updates, and only if you allow it. See the Privacy notice."),
                 point(Icons.EYE, "You choose what it touches",
                         "IdleStow only reads the folders you pick and only changes files after you agree (or after"
                                 + " you turn on fully autonomous mode yourself)."));
