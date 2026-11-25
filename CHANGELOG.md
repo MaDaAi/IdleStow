@@ -3,7 +3,7 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses semantic versioning.
 
-## [0.1.1] - Unreleased
+## [0.1.1] - 2026-11-25
 
 ### Added
 - In-app updater, opt-in. On first run IdleStow asks whether to check for updates automatically; closing the
@@ -25,7 +25,7 @@ All notable changes to this project are documented here. The format follows
   libraries for other operating systems removed), and the packaged app starts in about 2.2 s instead of
   3.4 s (class-data sharing and a lighter garbage collector).
 
-## [0.1.0] - Unreleased
+## [0.1.0] - 2026-11-25
 
 ### Added
 - Simple view (now the default): one screen with a single *Free up space* action that uses transparent
