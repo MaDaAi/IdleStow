@@ -31,9 +31,32 @@ Uninstalling never removes your files, your archives or retained originals. Befo
 folder, restore any archived files you still need from the **Recovery** screen, because the database
 there is what lists them.
 
-## First run: the setup wizard
+## First run
 
-The wizard opens the first time IdleStow starts. Nothing is selected or changed until you choose it.
+1. **Terms of Use.** The first time IdleStow starts it shows a short summary of the [Terms of Use](../../TERMS.md)
+   and the [Privacy notice](../../PRIVACY.md). Nothing is opened, read or changed until you tick the box and choose
+   **Agree and continue**. **Exit** closes IdleStow without changing anything. You are asked again only if the
+   terms change.
+2. **Simple view.** IdleStow then opens its Simple view.
+
+## The Simple view
+
+One screen with the essentials:
+
+* **One status card** says what to do next: *Choose a folder*, *Looking through your files...*,
+  *You can free up about X* with a **Free up space** button, *Freeing up space...*, or *All tidy*.
+* **Free up space** confirms first, then shrinks the suggested files with transparent (NTFS) compression only.
+  Files keep their names and places and open normally. Archive methods are only offered in the Advanced view.
+* **Three numbers:** space saved (measured), files checked, folders watched.
+* **Your folders:** add a folder, or stop watching one (your files are not touched).
+* **Undo changes** opens Recovery. **Pause** stops all work until you resume.
+* **Advanced view** (top right) shows everything described in the rest of this guide. In the Advanced view,
+  **Simple view** at the bottom of the sidebar switches back. IdleStow remembers your choice.
+
+## The setup wizard (Advanced view)
+
+If you switched to the Advanced view before finishing setup, the wizard opens when IdleStow starts. Nothing is
+selected or changed until you choose it.
 
 | Step | What you choose |
 |---|---|
@@ -252,8 +275,10 @@ Settings > Automation also offers pauses of 1 hour, 4 hours, or until you resume
 * **Exit IdleStow** (default) quits the application. If jobs are running, IdleStow asks first. Jobs stop at
   the next safe point, and anything interrupted is checked and recovered when IdleStow next starts.
 * **Keep running in the tray** hides the window and keeps IdleStow running in the notification area. This
-  choice is only available when the system tray is available. The tray menu has **Open IdleStow**,
-  **Pause 1 hour**, **Resume**, **Scan now** and **Exit**.
+  choice is only available when the system tray is available. Left-click the tray icon to open
+  IdleStow. Right-click it for a small menu that shows the current status (for example *Watching 2 folders* or
+  *Paused until 3:40 PM*) and offers **Open IdleStow**, **Pause for 1 hour**, **Pause until I resume** (or
+  **Resume** while paused), **Scan now** and **Exit IdleStow**. Press Esc or click elsewhere to close it.
 
 Starting IdleStow with `--background` opens only the tray icon, if the setup is complete and a tray is
 available. Otherwise the window opens.

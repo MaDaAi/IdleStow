@@ -924,6 +924,11 @@ public final class IdleStowEngine implements AutoCloseable {
         return jobManager.globallyPaused();
     }
 
+    /** Epoch millis when a timed pause ends; {@code Long.MAX_VALUE} for "until resumed"; 0 when not paused. */
+    public long pausedUntilMs() {
+        return paused() ? pausedUntilMs : 0;
+    }
+
     // =================================================================================== scheduling
 
     private synchronized void reschedule() {

@@ -83,6 +83,10 @@ New-Item -ItemType Directory -Force -Path $Build | Out-Null
 
 # ---------------------------------------------------------------- 1. Maven build
 if (-not $SkipBuild) {
+    # Maven's copy-dependencies never removes old jars, so an upgraded library would otherwise be shipped
+    # next to (and loaded before) its replacement. Start from an empty lib folder.
+    $LibDir = Join-Path $Root 'app\target\lib'
+    if (Test-Path $LibDir) { Remove-Item -Recurse -Force $LibDir }
     Push-Location $Root
     try {
         & (Join-Path $Root 'mvnw.cmd') -q -B package -DskipTests
@@ -93,6 +97,12 @@ $InputDir = Join-Path $Build 'input'
 New-Item -ItemType Directory -Force -Path $InputDir | Out-Null
 Copy-Item (Join-Path $Root 'app\target\idlestow.jar') $InputDir
 Copy-Item (Join-Path $Root 'app\target\lib\*.jar') $InputDir
+# Refuse to package two versions of the same library (stale jars from an earlier build).
+$dupes = Get-ChildItem $InputDir -Filter '*.jar' |
+    Group-Object { $_.BaseName -replace '-\d+(\.\d+)*', '' } | Where-Object { $_.Count -gt 1 }
+if ($dupes) {
+    throw "Duplicate library versions in the package input: $(($dupes | ForEach-Object { $_.Group.Name }) -join ', ')"
+}
 
 # ---------------------------------------------------------------- 2. Python worker
 $PyZip = Join-Path $Cache $PyZipName

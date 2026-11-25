@@ -3,9 +3,12 @@ import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.awt.LinearGradientPaint;
+import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
+import java.awt.geom.Ellipse2D;
+import java.awt.geom.Point2D;
 import java.awt.geom.Path2D;
-import java.awt.geom.Rectangle2D;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
@@ -21,7 +24,7 @@ import java.util.Map;
 
 /**
  * Draws the IdleStow mark with Java2D (same geometry as assets/branding/logo.svg,
- * which uses a 256 x 256 viewBox) and writes:
+ * which uses a 512 x 512 viewBox) and writes:
  *   <outDir>/png/icon-<size>.png   for 16, 24, 32, 48, 64, 128, 256, 512
  *   <outDir>/IdleStow.ico          multi-resolution ICO (16..256, PNG-compressed entries)
  *
@@ -32,10 +35,6 @@ public class BrandingGenerator {
 
     static final int[] PNG_SIZES = {16, 24, 32, 48, 64, 128, 256, 512};
     static final int[] ICO_SIZES = {16, 24, 32, 48, 64, 128, 256};
-
-    // Theme colors
-    static final Color ACCENT = new Color(0x60A5FA);
-    static final Color DARK = new Color(0x0F172A);
 
     public static void main(String[] args) throws IOException {
         if (args.length != 1) {
@@ -60,7 +59,36 @@ public class BrandingGenerator {
         System.out.println("wrote " + icoPath + " (" + ico.length + " bytes, " + ICO_SIZES.length + " entries)");
     }
 
-    /** Renders the mark at the given pixel size. Geometry is authored in the 256-unit SVG space. */
+    /** The document outline (with the folded corner) in the 512-unit SVG space. */
+    static Path2D paper() {
+        Path2D p = new Path2D.Double();
+        p.moveTo(142, 103);
+        p.lineTo(279, 103);
+        p.lineTo(371, 195);
+        p.lineTo(371, 371);
+        p.quadTo(371, 393, 349, 393);
+        p.lineTo(142, 393);
+        p.quadTo(120, 393, 120, 371);
+        p.lineTo(120, 125);
+        p.quadTo(120, 103, 142, 103);
+        p.closePath();
+        return p;
+    }
+
+    /**
+     * The crescent moon cut out of the page. In logo.svg it is two arcs:
+     * M263 224 A69 69 0 1 0 310 325 A59 59 0 0 1 263 224, i.e. a radius-69 disc minus a radius-59 disc
+     * whose centres follow from the arc end points.
+     */
+    static Area crescent() {
+        double c1x = 249.5773, c1y = 291.6818, r1 = 69;
+        double c2x = 304.1388, c2y = 266.2919, r2 = 59;
+        Area a = new Area(new Ellipse2D.Double(c1x - r1, c1y - r1, 2 * r1, 2 * r1));
+        a.subtract(new Area(new Ellipse2D.Double(c2x - r2, c2y - r2, 2 * r2, 2 * r2)));
+        return a;
+    }
+
+    /** Renders the mark (same geometry as assets/branding/logo.svg, 512 x 512 viewBox) at the given size. */
     static BufferedImage render(int size) {
         BufferedImage img = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = img.createGraphics();
@@ -68,28 +96,62 @@ public class BrandingGenerator {
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
             g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
-            g.scale(size / 256.0, size / 256.0);
+            g.setRenderingHint(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_QUALITY);
+            // Small icons use a little more of the canvas so the page stays readable at 16 px.
+            boolean small = size <= 32;
+            double inset = small ? 6 : 16;
+            g.scale(size / 512.0, size / 512.0);
 
-            // Storage box: <rect x="44" y="48" width="168" height="160" rx="30">
-            RoundRectangle2D box = new RoundRectangle2D.Double(44, 48, 168, 160, 60, 60);
-            g.setColor(ACCENT);
-            g.fill(box);
+            // Background tile: rounded square with a diagonal navy gradient.
+            double w = 512 - 2 * inset;
+            double radius = small ? 96 : 112;
+            g.setPaint(new LinearGradientPaint(new Point2D.Double(inset, inset), new Point2D.Double(512 - inset, 512 - inset),
+                    new float[]{0f, 1f}, new Color[]{new Color(0x202D45), new Color(0x101827)}));
+            g.fill(new RoundRectangle2D.Double(inset, inset, w, w, radius * 2, radius * 2));
 
-            // Dimmed lower half, clipped to the box (antialiased via Area intersection)
-            Area lowerHalf = new Area(box);
-            lowerHalf.intersect(new Area(new Rectangle2D.Double(44, 128, 168, 80)));
-            g.setColor(new Color(DARK.getRed(), DARK.getGreen(), DARK.getBlue(), (int) Math.round(0.22 * 255)));
-            g.fill(lowerHalf);
+            if (small) {
+                // Enlarge the page slightly around its centre for tiny sizes.
+                g.translate(245.5, 248);
+                g.scale(1.12, 1.12);
+                g.translate(-245.5, -248);
+            }
 
-            // Compression chevron: M82 92 L128 138 L174 92, stroke 30, round caps and joins
-            Path2D chevron = new Path2D.Double();
-            chevron.moveTo(82, 92);
-            chevron.lineTo(128, 138);
-            chevron.lineTo(174, 92);
-            g.setColor(DARK);
-            g.setStroke(new BasicStroke(30f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-            g.draw(chevron);
+            // Soft drop shadow under the page.
+            if (!small) {
+                Path2D shadow = paper();
+                shadow.transform(AffineTransform.getTranslateInstance(0, 9));
+                g.setColor(new Color(0x0B, 0x12, 0x20, (int) Math.round(0.35 * 255)));
+                g.fill(shadow);
+            }
+
+            // The page with the crescent cut out (mint gradient).
+            Area page = new Area(paper());
+            page.subtract(crescent());
+            g.setPaint(new LinearGradientPaint(new Point2D.Double(120, 103), new Point2D.Double(120 + 0.8 * 251, 393),
+                    new float[]{0f, 1f}, new Color[]{new Color(0xB0F5DB), new Color(0x48C7A5)}));
+            g.fill(page);
+
+            // Folded corner.
+            Path2D fold = new Path2D.Double();
+            fold.moveTo(279, 103);
+            fold.lineTo(279, 174);
+            fold.quadTo(279, 195, 300, 195);
+            fold.lineTo(371, 195);
+            fold.closePath();
+            g.setColor(new Color(0x268F81));
+            g.fill(fold);
+
+            // Sparkle next to the moon (too small to read below 32 px).
+            if (size > 32) {
+                Path2D plus = new Path2D.Double();
+                plus.moveTo(298, 228);
+                plus.lineTo(298, 252);
+                plus.moveTo(286, 240);
+                plus.lineTo(310, 240);
+                g.setColor(new Color(0x173B42));
+                g.setStroke(new BasicStroke(9f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g.draw(plus);
+            }
         } finally {
             g.dispose();
         }

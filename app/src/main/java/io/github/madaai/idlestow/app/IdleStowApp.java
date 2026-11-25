@@ -3,12 +3,14 @@ package io.github.madaai.idlestow.app;
 import io.github.madaai.idlestow.app.tray.TrayService;
 import io.github.madaai.idlestow.app.ui.Actions;
 import io.github.madaai.idlestow.app.ui.Dialogs;
+import io.github.madaai.idlestow.app.ui.Legal;
 import io.github.madaai.idlestow.app.ui.MainWindow;
 import io.github.madaai.idlestow.app.ui.Theme;
 import io.github.madaai.idlestow.app.ui.ViewId;
 import io.github.madaai.idlestow.app.ui.onboarding.OnboardingWizard;
 import io.github.madaai.idlestow.app.util.Background;
 import io.github.madaai.idlestow.app.util.LogLevels;
+import io.github.madaai.idlestow.app.util.UiPrefs;
 import io.github.madaai.idlestow.core.db.Database;
 import io.github.madaai.idlestow.core.engine.InstanceLock;
 import javafx.application.Application;
@@ -64,6 +66,12 @@ public final class IdleStowApp extends Application implements AppContext.Lifecyc
     // ------------------------------------------------------------------ normal start
 
     private void bootstrap() {
+        // The Terms of Use are accepted before IdleStow opens its database or touches anything.
+        if (!Legal.requestAcceptance(null, UiPrefs.forDataDir(dataDir))) {
+            LOG.info("Terms of Use not accepted; exiting without changes");
+            exit();
+            return;
+        }
         Background.supply(() -> Bootstrap.create(args, dataDir)).whenComplete((c, err) -> {
             if (err != null) {
                 onBootstrapFailure(err);
@@ -143,7 +151,14 @@ public final class IdleStowApp extends Application implements AppContext.Lifecyc
         startActivationWatcher();
         window.start();
         boolean onboarding = !ctx.engine().settings().onboardingCompleted();
-        if (onboarding) {
+        boolean simpleFirst = !"advanced".equals(ctx.prefs().getString("uiMode", "simple"));
+        if (onboarding && simpleFirst) {
+            // New users start in the Simple view, which walks them through adding a folder. The full setup
+            // wizard is for the Advanced view (Settings keeps every option it sets, with safe defaults).
+            Background.run(() -> ctx.engine().settingsStore().update("onboarding.completed", "true"))
+                    .exceptionally(t -> null);
+            showWindow();
+        } else if (onboarding) {
             OnboardingWizard w = OnboardingWizard.create(ctx, this::showWindow);
             w.show();
         } else if (args.background() && trayOk) {
@@ -184,9 +199,9 @@ public final class IdleStowApp extends Application implements AppContext.Lifecyc
     public void showWindow() {
         Platform.runLater(() -> {
             if (window == null) return;
-            if (window.currentView() == null) {
+            if (window.currentView() == null && !window.simpleMode()) {
                 window.restoreGeometry();
-                window.show(window.lastView());
+                window.showInitial();
             }
             if (!primary.isShowing()) primary.show();
             primary.setIconified(false);
@@ -308,7 +323,7 @@ public final class IdleStowApp extends Application implements AppContext.Lifecyc
         OnboardingWizard wizard = OnboardingWizard.create(ctx, null);
         wizard.content();
         window.scene().getRoot().applyCss();
-        window.loadAllViews().whenComplete((v, err) -> {
+        window.loadAllViews().thenCompose(v -> window.loadSimpleView()).whenComplete((v, err) -> {
             if (err != null) {
                 smokeFail(err);
                 return;

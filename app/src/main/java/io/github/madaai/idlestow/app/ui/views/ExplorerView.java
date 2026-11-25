@@ -526,7 +526,7 @@ public final class ExplorerView extends BaseView {
         table.setOnKeyPressed(e -> {
             if (e.getCode() == KeyCode.DELETE || e.getCode() == KeyCode.BACK_SPACE && e.isShortcutDown()) {
                 e.consume();
-                toast("IdleStow never deletes your files.");
+                toast("IdleStow has no delete command.");
             } else if (e.getCode() == KeyCode.ENTER && !selected().isEmpty()) {
                 e.consume();
                 activate(selected().get(0));

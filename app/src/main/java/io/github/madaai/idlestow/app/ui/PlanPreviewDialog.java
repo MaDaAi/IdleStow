@@ -104,7 +104,7 @@ public final class PlanPreviewDialog {
         stage.setMinHeight(560);
 
         Label title = UI.label("Review before optimizing", "h2");
-        Label sub = UI.wrapped("Nothing has been changed yet. IdleStow never deletes your files: compression is"
+        Label sub = UI.wrapped("Nothing has been changed yet. Optimizing never deletes a file: compression is"
                 + " verified and can be reversed. Uncheck any file you want to leave alone.", "muted");
 
         methodBox.setMaxWidth(Double.MAX_VALUE);

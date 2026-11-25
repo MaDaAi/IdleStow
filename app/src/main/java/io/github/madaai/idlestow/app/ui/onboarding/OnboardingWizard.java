@@ -288,8 +288,9 @@ public final class OnboardingWizard {
         v.getChildren().addAll(
                 UI.wrapped("IdleStow finds files you have not used for a while and shrinks them with lossless,"
                         + " verified compression to reclaim disk space. Idle files. Reclaimed space.", "detail-value"),
-                point(Icons.SHIELD, "It never deletes your files",
-                        "Files are only compressed, and every result is verified. You can restore anything at any time."),
+                point(Icons.SHIELD, "It won't delete your files on its own",
+                        "Files are only compressed, and every result is verified. You can restore anything at any time. A file is"
+                                + " only ever removed when you ask for it in Recovery."),
                 point(Icons.EYE, "It only looks where you allow",
                         "You choose the folders. IdleStow never scans the rest of your computer and sends nothing"
                                 + " anywhere: no accounts, no telemetry."),

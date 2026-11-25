@@ -87,3 +87,18 @@ Consequence: the default estimation sample was reduced from 4 MiB to 1 MiB (even
 * Windows 10, Linux, macOS (no such machines/CI runs available).
 * GitHub Actions workflows (repository not pushed).
 * Long-running background scheduling and the system tray menu (manual launch only).
+
+## 2026-11-24: Simple view, Terms of Use, new logo, tray menu, LegalGuard audit
+
+| Command | Result |
+|---|---|
+| `./mvnw -B install -Dsurefire.excludedGroups=gui,benchmark` | exit 0; 424 Java tests, 0 failures, 0 errors, 3 skipped (symlink privilege / platform) |
+| New tests | `LegalTest` (3: acceptance persisted, older version re-asked, bundled TERMS.md version matches code), `PauseStateTest` (1) |
+| `cd python; python -m pytest -q` / `python -m ruff check .` | 171 passed / all checks passed |
+| `java -jar app/target/idlestow.jar --smoke-test` (builds every Advanced view and the Simple view) | SMOKE OK |
+| `scripts/package-windows.ps1`, then `IdleStow-cli.exe --smoke-test` | package built; SMOKE OK with the bundled runtime and worker; `app/` contains only logback 1.5.38 |
+| Network sampling during the packaged smoke run (`Get-NetTCPConnection` / `Get-NetUDPEndpoint` for the app process every 300 ms) | 0 endpoints; worker processes too short-lived to sample |
+| UI snapshots (dark and light) of the Simple view (empty, ready), Advanced Overview, tray menu, Terms dialog, from synthetic files in `target/snap-files` | Rendered as intended after two CSS fixes (link color, unticked checkbox mark) |
+
+Found and fixed: the local package had shipped logback 1.5.18 next to 1.5.38 because Maven never cleans
+`app/target/lib`; `package-windows.ps1` now clears it and refuses duplicate library versions.

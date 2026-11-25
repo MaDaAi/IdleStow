@@ -18,7 +18,7 @@ compresses them **losslessly and verifiably**, so you get disk space back withou
 It understands that one folder can contain both today's work and last year's notes: every file is judged
 on its own evidence, and anything uncertain is left alone.
 
-IdleStow is not a disk cleaner. It never deletes your files, it works only inside folders you
+IdleStow is not a disk cleaner. It never deletes your files on its own, it works only inside folders you
 authorize, it runs fully offline, and every optimization can be undone.
 
 > Status: **0.1.0, first release candidate.** Windows 10/11 on NTFS is the supported platform. Linux and
@@ -77,7 +77,13 @@ machine. The current release is the portable package.
 
 ## Usage
 
-1. **Add folders** (onboarding or *Settings → Monitoring*). IdleStow indexes them read-only.
+IdleStow opens in the **Simple view**: one screen that tells you how much space you could free, with one
+**Free up space** button. The Simple view only uses transparent compression, so files stay where they are and
+open normally. Choose **Advanced view** (top right) for everything below. You can switch back at any time.
+
+In the Advanced view:
+
+1. **Add folders** (*Settings → Monitoring* or the Explorer). IdleStow indexes them read-only.
 2. Review the **Overview** and the **Explorer**. Every file shows its activity, its confidence, and the
    reason for both.
 3. Open **Recommendations** and approve, reject, postpone, pin or exclude. Or select files or folders in
@@ -175,4 +181,9 @@ Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md), the
 ## License
 
 Copyright 2026 Mansoor Alakoozai. [Apache License 2.0](LICENSE). Third-party components are listed in
-[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Privacy: [PRIVACY.md](PRIVACY.md) (IdleStow collects nothing; everything stays on your computer).
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+- [Terms of Use](TERMS.md): IdleStow is free and provided as is, without warranty. Keep your own backups;
+  compression is not a backup. The app asks you to agree to these terms the first time it starts.
+- [Privacy notice](PRIVACY.md): IdleStow collects nothing; everything stays on your computer.
+- [Security policy](SECURITY.md): how to report a vulnerability privately.

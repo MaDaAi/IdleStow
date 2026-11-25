@@ -33,11 +33,14 @@
       <resource>
         <directory>src/main/resources</directory>
       </resource>
-      <!-- Single source of truth for license notices shown in Settings → Advanced. -->
+      <!-- Single source of truth for the legal texts shown in the app (Settings → Advanced, first-run terms). -->
       <resource>
         <directory>${project.basedir}/..</directory>
         <includes>
           <include>THIRD-PARTY-NOTICES.md</include>
+          <include>TERMS.md</include>
+          <include>PRIVACY.md</include>
+          <include>LICENSE</include>
         </includes>
       </resource>
     </resources>

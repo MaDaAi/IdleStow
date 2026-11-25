@@ -130,7 +130,7 @@ public final class OverviewView extends BaseView {
                 "primary");
         VBox empty = UI.emptyState(Icons.FOLDER_OPEN, "Choose what IdleStow may look at",
                 "IdleStow only ever reads folders you authorize. It finds idle files, recommends verified lossless"
-                        + " compression and never deletes anything. Add a folder to get your first recommendations.", cta);
+                        + " compression and never deletes your files on its own. Add a folder to get your first recommendations.", cta);
         VBox card = new VBox(empty);
         card.getStyleClass().add("card");
         return card;

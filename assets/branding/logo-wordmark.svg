@@ -1,19 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 256" width="800" height="256">
   <title>IdleStow - Idle files. Reclaimed space.</title>
   <defs>
-    <clipPath id="box-clip">
-      <rect x="44" y="48" width="168" height="160" rx="30" ry="30"/>
-    </clipPath>
+    <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#202D45"/><stop offset="1" stop-color="#101827"/></linearGradient>
+    <linearGradient id="paper" x1="0" y1="0" x2="0.8" y2="1"><stop stop-color="#B0F5DB"/><stop offset="1" stop-color="#48C7A5"/></linearGradient>
   </defs>
   <!-- dark panel so the wordmark reads on light and dark READMEs -->
-  <rect x="0" y="0" width="800" height="256" rx="40" ry="40" fill="#0F172A"/>
-  <!-- logo mark (same geometry as logo.svg, offset 16px) -->
-  <g transform="translate(16 0)">
-    <rect x="44" y="48" width="168" height="160" rx="30" ry="30" fill="#60A5FA"/>
-    <rect x="44" y="128" width="168" height="80" fill="#0F172A" fill-opacity="0.22" clip-path="url(#box-clip)"/>
-    <path d="M82 92 L128 138 L174 92" fill="none" stroke="#0F172A" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="0" y="0" width="800" height="256" rx="40" ry="40" fill="#101827"/>
+  <!-- logo mark (same geometry as logo.svg, scaled to half size) -->
+  <g transform="translate(0 0) scale(0.5)">
+    <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#bg)"/>
+    <path d="M142 103H279L371 195V371Q371 393 349 393H142Q120 393 120 371V125Q120 103 142 103Z" fill="#0B1220" transform="translate(0 9)" opacity=".35"/>
+    <path d="M142 103H279L371 195V371Q371 393 349 393H142Q120 393 120 371V125Q120 103 142 103Z M263 224 A69 69 0 1 0 310 325 A59 59 0 0 1 263 224Z" fill="url(#paper)" fill-rule="evenodd"/>
+    <path d="M279 103V174Q279 195 300 195H371Z" fill="#268F81"/>
+    <path d="M298 228V252M286 240H310" stroke="#173B42" stroke-width="9" stroke-linecap="round"/>
   </g>
   <!-- wordmark and slogan -->
-  <text x="300" y="134" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="96" font-weight="700" fill="#F8FAFC">IdleStow</text>
-  <text x="304" y="186" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="30" font-weight="400" fill="#2DD4BF">Idle files. Reclaimed space.</text>
+  <text x="284" y="134" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="96" font-weight="700" fill="#F8FAFC">IdleStow</text>
+  <text x="288" y="186" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="30" font-weight="400" fill="#6EE7C4">Idle files. Reclaimed space.</text>
 </svg>

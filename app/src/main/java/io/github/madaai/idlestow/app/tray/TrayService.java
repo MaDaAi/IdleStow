@@ -8,35 +8,32 @@ import org.slf4j.LoggerFactory;
 import javax.imageio.ImageIO;
 import java.awt.AWTException;
 import java.awt.Color;
-import java.awt.Font;
 import java.awt.Graphics2D;
 import java.awt.Image;
-import java.awt.MenuItem;
-import java.awt.PopupMenu;
 import java.awt.RenderingHints;
 import java.awt.SystemTray;
 import java.awt.TrayIcon;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.Duration;
 
 /**
- * System tray integration (java.awt.SystemTray). When the tray is not supported the application falls back to
- * "exit on close" and always keeps its window.
+ * System tray integration (java.awt.SystemTray). The right-click menu is a themed JavaFX popup ({@link TrayMenu})
+ * instead of the native AWT menu, so it matches the application. When the tray is not supported the application
+ * falls back to "exit on close" and always keeps its window.
  */
 public final class TrayService {
     private static final Logger LOG = LoggerFactory.getLogger(TrayService.class);
 
-    private final AppContext ctx;
     private final Runnable openWindow;
-    private final Runnable exit;
+    private final TrayMenu menu;
     private TrayIcon icon;
 
     public TrayService(AppContext ctx, Runnable openWindow, Runnable exit) {
-        this.ctx = ctx;
         this.openWindow = openWindow;
-        this.exit = exit;
+        this.menu = new TrayMenu(ctx, openWindow, exit);
     }
 
     public static boolean supported() {
@@ -51,17 +48,24 @@ public final class TrayService {
     public boolean install() {
         if (!supported()) return false;
         try {
-            PopupMenu menu = new PopupMenu();
-            menu.add(item("Open IdleStow", () -> Platform.runLater(openWindow)));
-            menu.addSeparator();
-            menu.add(item("Pause 1 hour", () -> ctx.engine().pauseAll(Duration.ofHours(1))));
-            menu.add(item("Resume", () -> ctx.engine().resumeAll()));
-            menu.add(item("Scan now", () -> ctx.engine().scan(null)));
-            menu.addSeparator();
-            menu.add(item("Exit", exit));
-            icon = new TrayIcon(image(), "IdleStow - Idle files. Reclaimed space.", menu);
+            icon = new TrayIcon(image(), "IdleStow - Idle files. Reclaimed space.");
             icon.setImageAutoSize(true);
-            icon.addActionListener(e -> Platform.runLater(openWindow));
+            icon.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseReleased(MouseEvent e) {
+                    if (e.isPopupTrigger() || e.getButton() == MouseEvent.BUTTON3) {
+                        // Tray icon mouse events carry absolute screen coordinates.
+                        double x = e.getXOnScreen();
+                        double y = e.getYOnScreen();
+                        Platform.runLater(() -> menu.showAt(x, y));
+                    } else if (e.getButton() == MouseEvent.BUTTON1) {
+                        Platform.runLater(() -> {
+                            menu.hide();
+                            openWindow.run();
+                        });
+                    }
+                }
+            });
             SystemTray.getSystemTray().add(icon);
             return true;
         } catch (AWTException | RuntimeException | UnsatisfiedLinkError e) {
@@ -72,6 +76,7 @@ public final class TrayService {
     }
 
     public void remove() {
+        Platform.runLater(menu::dispose);
         if (icon != null) {
             try {
                 SystemTray.getSystemTray().remove(icon);
@@ -88,12 +93,6 @@ public final class TrayService {
         }
     }
 
-    private static MenuItem item(String text, Runnable action) {
-        MenuItem mi = new MenuItem(text);
-        mi.addActionListener(e -> action.run());
-        return mi;
-    }
-
     private static Image image() {
         for (String n : new String[]{"/branding/icon-32.png", "/branding/icon-64.png"}) {
             try (InputStream in = TrayService.class.getResourceAsStream(n)) {
@@ -105,14 +104,14 @@ public final class TrayService {
                 // fall back to the drawn icon
             }
         }
+        // Minimal fallback in the logo colors: navy tile with a mint page.
         BufferedImage img = new BufferedImage(32, 32, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = img.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g.setColor(new Color(0x1E293B));
-        g.fillRoundRect(1, 1, 30, 30, 8, 8);
-        g.setColor(new Color(0x60A5FA));
-        g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 20));
-        g.drawString("I", 11, 24);
+        g.setColor(new Color(0x16213A));
+        g.fillRoundRect(1, 1, 30, 30, 10, 10);
+        g.setColor(new Color(0x6FE0BE));
+        g.fillRoundRect(9, 6, 14, 20, 3, 3);
         g.dispose();
         return img;
     }

@@ -1,6 +1,7 @@
 package io.github.madaai.idlestow.app.ui;
 
 import io.github.madaai.idlestow.app.AppContext;
+import io.github.madaai.idlestow.app.ui.simple.SimpleHome;
 import io.github.madaai.idlestow.app.ui.components.UI;
 import io.github.madaai.idlestow.app.ui.views.BaseView;
 import io.github.madaai.idlestow.app.ui.views.ExplorerView;
@@ -50,7 +51,10 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
-/** The main application window: sidebar, toolbar, the active view and the status bar. */
+/**
+ * The main application window. Two presentations share it: the Simple view (one screen, see {@link SimpleHome}) and
+ * the Advanced view (sidebar, toolbar, the active view and the status bar). The choice is remembered.
+ */
 public final class MainWindow implements Navigator {
     private static final KeyCombination[] NUMBER_KEYS = {
         new KeyCodeCombination(KeyCode.DIGIT1, KeyCombination.CONTROL_DOWN),
@@ -80,6 +84,10 @@ public final class MainWindow implements Navigator {
     private final Map<Long, JobState> knownJobs = new HashMap<>();
     private boolean jobsSeeded;
     private ViewId current;
+    private final StackPane host = new StackPane();
+    private BorderPane advancedRoot;
+    private SimpleHome simple;
+    private boolean simpleMode;
 
     public MainWindow(AppContext ctx, Stage stage) {
         this.ctx = ctx;
@@ -108,11 +116,14 @@ public final class MainWindow implements Navigator {
         toast.setMaxWidth(640);
         StackPane.setAlignment(toast, Pos.BOTTOM_CENTER);
         StackPane.setMargin(toast, new Insets(0, 0, 18, 0));
-        root.setCenter(new StackPane(centerBox, toast));
+        root.setCenter(centerBox);
         root.setBottom(statusBar);
+        advancedRoot = root;
         toastTimer.setOnFinished(e -> toast.setVisible(false));
+        host.getChildren().add(root);
+        StackPane top = new StackPane(host, toast);
 
-        scene = new Scene(root, 1280, 800);
+        scene = new Scene(top, 1280, 800);
         Theme.register(scene);
         installShortcuts();
         stage.setScene(scene);
@@ -160,9 +171,13 @@ public final class MainWindow implements Navigator {
         });
         Region grow = new Region();
         VBox.setVgrow(grow, Priority.ALWAYS);
+        Button simpleBtn = UI.button("Simple view", Icons.TARGET, this::showSimple, "flat");
+        simpleBtn.setMaxWidth(Double.MAX_VALUE);
+        simpleBtn.setAlignment(Pos.CENTER_LEFT);
+        simpleBtn.setTooltip(UI.tip("Switch to the simple one-screen view"));
         Label ver = UI.label("v" + AppContext.version() + "  -  local only, no telemetry", "slogan");
         ver.setWrapText(true);
-        box.getChildren().addAll(grow, ver);
+        box.getChildren().addAll(grow, simpleBtn, ver);
         box.setPadding(new Insets(16, 12, 14, 12));
         box.setPrefWidth(224);
         box.setMinWidth(224);
@@ -226,8 +241,56 @@ public final class MainWindow implements Navigator {
         }
     }
 
+    // ------------------------------------------------------------------ simple / advanced
+
+    public boolean simpleMode() {
+        return simpleMode;
+    }
+
+    /** Shows the view the user last used: the Simple view (default for new users) or an Advanced view. */
+    public void showInitial() {
+        if ("advanced".equals(ctx.prefs().getString("uiMode", "simple"))) {
+            show(lastView());
+        } else {
+            showSimple();
+        }
+    }
+
+    public void showSimple() {
+        if (simple == null) simple = new SimpleHome(ctx, () -> show(current == null ? ViewId.OVERVIEW : current));
+        if (current != null) {
+            BaseView old = views.get(current);
+            if (old != null) old.onHidden();
+        }
+        simpleMode = true;
+        host.getChildren().setAll(simple.node());
+        ctx.prefs().put("uiMode", "simple");
+        simple.onShown();
+    }
+
+    private void leaveSimple() {
+        if (!simpleMode) return;
+        simpleMode = false;
+        if (simple != null) simple.onHidden();
+        host.getChildren().setAll(advancedRoot);
+        ctx.prefs().put("uiMode", "advanced");
+        if (current != null) {
+            BaseView v = view(current);
+            v.onShown();
+        }
+    }
+
+    /** Smoke test helper: builds and loads the simple view once. */
+    public CompletableFuture<Void> loadSimpleView() {
+        showSimple();
+        return simple.refresh();
+    }
+
     @Override
     public void show(ViewId id) {
+        if (simpleMode) {
+            leaveSimple();
+        }
         if (id == current) {
             return;
         }
@@ -424,6 +487,7 @@ public final class MainWindow implements Navigator {
             p.put("win.h", stage.getHeight());
         }
         if (current != null) p.put("view", current.name());
+        p.put("uiMode", simpleMode ? "simple" : "advanced");
         p.save();
     }
 

@@ -1,0 +1,281 @@
+{
+ "bomFormat": "CycloneDX",
+ "specVersion": "1.5",
+ "serialNumber": "urn:uuid:5b00cb25-2df4-5e56-8052-b6558e3e5b0d",
+ "version": 1,
+ "metadata": {
+  "timestamp": "2026-11-24T00:00:00Z",
+  "component": {
+   "type": "application",
+   "name": "IdleStow",
+   "version": "0.1.0",
+   "licenses": [
+    {
+     "expression": "Apache-2.0"
+    }
+   ],
+   "bom-ref": "idlestow",
+   "supplier": {
+    "name": "Mansoor Alakoozai"
+   }
+  },
+  "properties": [
+   {
+    "name": "source",
+    "value": "dist/windows/IdleStow (portable package built 2026-11-24)"
+   }
+  ]
+ },
+ "components": [
+  {
+   "type": "library",
+   "name": "idlestow-core",
+   "version": "0.1.0",
+   "purl": "pkg:maven/io.github.madaai/idlestow-core@0.1.0",
+   "licenses": [
+    {
+     "expression": "Apache-2.0"
+    }
+   ],
+   "bom-ref": "pkg:maven/io.github.madaai/idlestow-core@0.1.0"
+  },
+  {
+   "type": "library",
+   "name": "idlestow-platform",
+   "version": "0.1.0",
+   "purl": "pkg:maven/io.github.madaai/idlestow-platform@0.1.0",
+   "licenses": [
+    {
+     "expression": "Apache-2.0"
+    }
+   ],
+   "bom-ref": "pkg:maven/io.github.madaai/idlestow-platform@0.1.0"
+  },
+  {
+   "type": "library",
+   "name": "jackson-annotations",
+   "version": "2.23",
+   "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-annotations@2.23",
+   "licenses": [
+    {
+     "expression": "Apache-2.0"
+    }
+   ],
+   "bom-ref": "pkg:maven/com.fasterxml.jackson.core/jackson-annotations@2.23"
+  },
+  {
+   "type": "library",
+   "name": "jackson-core",
+   "version": "2.23.0",
+   "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-core@2.23.0",
+   "licenses": [
+    {
+     "expression": "Apache-2.0"
+    }
+   ],
+   "bom-ref": "pkg:maven/com.fasterxml.jackson.core/jackson-core@2.23.0"
+  },
+  {
+   "type": "library",
+   "name": "jackson-databind",
+   "version": "2.23.0",
+   "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.23.0",
+   "licenses": [
+    {
+     "expression": "Apache-2.0"
+    }
+   ],
+   "bom-ref": "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.23.0"
+  },
+  {
+   "type": "library",
+   "name": "javafx-base-win",
+   "version": "21.0.13",
+   "purl": "pkg:maven/org.openjfx/javafx-base@21.0.13?classifier=win",
+   "licenses": [
+    {
+     "expression": "GPL-2.0-with-classpath-exception"
+    }
+   ],
+   "bom-ref": "pkg:maven/org.openjfx/javafx-base@21.0.13?classifier=win"
+  },
+  {
+   "type": "library",
+   "name": "javafx-base",
+   "version": "21.0.13",
+   "purl": "pkg:maven/org.openjfx/javafx-base@21.0.13",
+   "licenses": [
+    {
+     "expression": "GPL-2.0-with-classpath-exception"
+    }
+   ],
+   "bom-ref": "pkg:maven/org.openjfx/javafx-base@21.0.13"
+  },
+  {
+   "type": "library",
+   "name": "javafx-controls-win",
+   "version": "21.0.13",
+   "purl": "pkg:maven/org.openjfx/javafx-controls@21.0.13?classifier=win",
+   "licenses": [
+    {
+     "expression": "GPL-2.0-with-classpath-exception"
+    }
+   ],
+   "bom-ref": "pkg:maven/org.openjfx/javafx-controls@21.0.13?classifier=win"
+  },
+  {
+   "type": "library",
+   "name": "javafx-controls",
+   "version": "21.0.13",
+   "purl": "pkg:maven/org.openjfx/javafx-controls@21.0.13",
+   "licenses": [
+    {
+     "expression": "GPL-2.0-with-classpath-exception"
+    }
+   ],
+   "bom-ref": "pkg:maven/org.openjfx/javafx-controls@21.0.13"
+  },
+  {
+   "type": "library",
+   "name": "javafx-graphics-win",
+   "version": "21.0.13",
+   "purl": "pkg:maven/org.openjfx/javafx-graphics@21.0.13?classifier=win",
+   "licenses": [
+    {
+     "expression": "GPL-2.0-with-classpath-exception"
+    }
+   ],
+   "bom-ref": "pkg:maven/org.openjfx/javafx-graphics@21.0.13?classifier=win"
+  },
+  {
+   "type": "library",
+   "name": "javafx-graphics",
+   "version": "21.0.13",
+   "purl": "pkg:maven/org.openjfx/javafx-graphics@21.0.13",
+   "licenses": [
+    {
+     "expression": "GPL-2.0-with-classpath-exception"
+    }
+   ],
+   "bom-ref": "pkg:maven/org.openjfx/javafx-graphics@21.0.13"
+  },
+  {
+   "type": "library",
+   "name": "jna",
+   "version": "5.19.1",
+   "purl": "pkg:maven/net.java.dev.jna/jna@5.19.1",
+   "licenses": [
+    {
+     "expression": "Apache-2.0 OR LGPL-2.1-or-later"
+    }
+   ],
+   "bom-ref": "pkg:maven/net.java.dev.jna/jna@5.19.1"
+  },
+  {
+   "type": "library",
+   "name": "jna-platform",
+   "version": "5.19.1",
+   "purl": "pkg:maven/net.java.dev.jna/jna-platform@5.19.1",
+   "licenses": [
+    {
+     "expression": "Apache-2.0 OR LGPL-2.1-or-later"
+    }
+   ],
+   "bom-ref": "pkg:maven/net.java.dev.jna/jna-platform@5.19.1"
+  },
+  {
+   "type": "library",
+   "name": "logback-classic",
+   "version": "1.5.38",
+   "purl": "pkg:maven/ch.qos.logback/logback-classic@1.5.38",
+   "licenses": [
+    {
+     "expression": "EPL-1.0 OR LGPL-2.1-only"
+    }
+   ],
+   "bom-ref": "pkg:maven/ch.qos.logback/logback-classic@1.5.38"
+  },
+  {
+   "type": "library",
+   "name": "logback-core",
+   "version": "1.5.38",
+   "purl": "pkg:maven/ch.qos.logback/logback-core@1.5.38",
+   "licenses": [
+    {
+     "expression": "EPL-1.0 OR LGPL-2.1-only"
+    }
+   ],
+   "bom-ref": "pkg:maven/ch.qos.logback/logback-core@1.5.38"
+  },
+  {
+   "type": "library",
+   "name": "slf4j-api",
+   "version": "2.0.20",
+   "purl": "pkg:maven/org.slf4j/slf4j-api@2.0.20",
+   "licenses": [
+    {
+     "expression": "MIT"
+    }
+   ],
+   "bom-ref": "pkg:maven/org.slf4j/slf4j-api@2.0.20"
+  },
+  {
+   "type": "library",
+   "name": "sqlite-jdbc",
+   "version": "3.54.1.0",
+   "purl": "pkg:maven/org.xerial/sqlite-jdbc@3.54.1.0",
+   "licenses": [
+    {
+     "expression": "Apache-2.0"
+    }
+   ],
+   "bom-ref": "pkg:maven/org.xerial/sqlite-jdbc@3.54.1.0"
+  },
+  {
+   "type": "platform",
+   "name": "Eclipse Temurin JRE (jlink image)",
+   "version": "21.0.13.1+2",
+   "licenses": [
+    {
+     "expression": "GPL-2.0-with-classpath-exception"
+    }
+   ],
+   "bom-ref": "temurin"
+  },
+  {
+   "type": "platform",
+   "name": "CPython embeddable",
+   "version": "3.12.10",
+   "licenses": [
+    {
+     "expression": "PSF-2.0"
+    }
+   ],
+   "purl": "pkg:generic/cpython@3.12.10",
+   "bom-ref": "cpython"
+  },
+  {
+   "type": "library",
+   "name": "zstandard",
+   "version": "0.25.0",
+   "purl": "pkg:pypi/zstandard@0.25.0",
+   "licenses": [
+    {
+     "expression": "BSD-3-Clause"
+    }
+   ],
+   "bom-ref": "pkg:pypi/zstandard@0.25.0"
+  },
+  {
+   "type": "application",
+   "name": "idlestow-python-worker",
+   "version": "0.1.0",
+   "licenses": [
+    {
+     "expression": "Apache-2.0"
+    }
+   ],
+   "bom-ref": "worker"
+  }
+ ]
+}

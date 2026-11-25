@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 ## [0.1.0] - Unreleased
 
 ### Added
+- Simple view (now the default): one screen with a single *Free up space* action that uses transparent
+  compression only, plain-language status, folder list and an *Undo changes* shortcut. The previous interface
+  is the Advanced view; switch either way at any time.
+- Terms of Use (`TERMS.md`) with a first-run agreement screen; acceptance is versioned and asked again when the
+  terms change. Terms, privacy notice, license and third-party notices are viewable in the app.
+- New logo (document with a crescent moon on a navy tile) for the app, window, tray and Windows icon; the
+  theme accent colors follow it.
+- Themed tray menu showing the current status, with *Pause for 1 hour*, *Pause until I resume* / *Resume*,
+  *Scan now* and *Exit*; a left click opens IdleStow.
 - Persistent metadata-only indexer with rename/move detection, reconciliation and filesystem watching.
 - Evidence-based activity classification with explanations, observation period and self-read filtering.
 - Policy engine with mandatory protections, pins, exclusions and scoped policies.

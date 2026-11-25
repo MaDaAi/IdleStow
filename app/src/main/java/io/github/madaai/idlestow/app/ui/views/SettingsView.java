@@ -845,7 +845,9 @@ public final class SettingsView extends BaseView {
         licenses.getStyleClass().add("mono");
         return page("Advanced", null, box("Diagnostics", advancedBox, verbose),
                 box("About", UI.label("IdleStow " + AppContext.version(), "h3"),
-                        UI.muted("Idle files. Reclaimed space. Apache License 2.0."), UI.label("Third-party licenses",
+                        UI.muted("Idle files. Reclaimed space. Copyright 2026 Mansoor Alakoozai. Apache License 2.0."
+                                + " Provided as is, without warranty."),
+                        io.github.madaai.idlestow.app.ui.Legal.links(owner()), UI.label("Third-party licenses",
                                 "section-title"), licenses));
     }
 
