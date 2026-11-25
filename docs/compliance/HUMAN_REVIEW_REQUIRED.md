@@ -8,7 +8,7 @@
 | AI-assisted code (IP-005, AI-006, AI-007) | Owner; lawyer if commercial | Review safety-critical code; copyright in AI-generated code is unsettled. |
 | Employer or school IP policy (IP-018) | Owner | Confirm no agreement claims your personal projects. |
 | GPL source availability (LIC-014, LIC-026) | Owner | Attach Temurin and OpenJFX source archives to each binary release. |
-| GitHub settings (SEC-039, GIT-007, GIT-001) | Owner | Enable private vulnerability reporting, branch protection and 2FA; set the repository description. |
+| GitHub settings | Owner | Private vulnerability reporting and the description are done (2026-11-25). Still recommended: branch protection on `main` and two-factor authentication on your account. |
 | Accessibility (ACC-*) | Owner, ideally with users of assistive technology | Narrator and keyboard-only testing; confirm AODA does not apply to you as an individual. |
 | Code signing and checksums (DIST-010, DIST-011, SEC-041) | Owner | A signing certificate costs money; at least publish SHA-256 sums. |
 | Business matters | Owner; accountant if monetised | Nothing is needed for a free personal project. If IdleStow is ever sold or offered with paid support, revisit pricing and refund checks (CON-012..018) and the EU Cyber Resilience Act (REG-001), and consider errors-and-omissions insurance. Incorporating does not remove all personal liability. |

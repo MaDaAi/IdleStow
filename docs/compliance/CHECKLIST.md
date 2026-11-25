@@ -159,7 +159,7 @@ Generated from `FINAL_AUDIT.json`. Baseline status is from `BASELINE_AUDIT.json`
 | SEC-043 | Debug interfaces | MEDIUM | PASS | PASS | No debug ports; --smoke-test/--self-test are local and refuse non-empty dirs. |  |
 | SEC-044 | IPC security | MEDIUM | PASS | PASS | Private stdio pipes to a child process. |  |
 | SEC-045 | Threat modelling | MEDIUM | PASS | PASS | docs/security/threat-model.md. |  |
-| SEC-039 | Vulnerability reporting | MEDIUM | PARTIAL | PARTIAL | SECURITY.md exists; GitHub private vulnerability reporting not verified as enabled. | Owner: Settings > Security > enable private vulnerability reporting. |
+| SEC-039 | Vulnerability reporting | MEDIUM | PARTIAL | PASS | SECURITY.md exists. Baseline: private vulnerability reporting not verified. Final: GitHub API reports private vulnerability reporting enabled (2026-11-25). |  |
 | SEC-040 | Incident response planning | LOW | FAIL | PASS | Baseline: none. Final: SECURITY.md 'If a data-loss or security bug is found' steps. |  |
 | SEC-041 | Release integrity verification | LOW | UNVERIFIED | UNVERIFIED | No release published; binaries unsigned (DIST-010). | Owner: publish SHA-256 sums with releases. |
 | DATA-001 | Explicit authorization | HIGH | PASS | PASS | Every change needs a user approval, a plan preview or a confirmed autonomous policy. The new Simple view's Free up space asks for confirmation and uses the same approveRecommendations path with transparent compression only. |  |
@@ -290,13 +290,13 @@ Generated from `FINAL_AUDIT.json`. Baseline status is from `BASELINE_AUDIT.json`
 | ACC-013 | Automated accessibility testing | LOW | UNVERIFIED | UNVERIFIED | Not performed. | Owner: Narrator + keyboard-only pass before 1.0. |
 | ACC-014 | Manual accessibility testing | LOW | UNVERIFIED | UNVERIFIED | Not performed. | Owner: Narrator + keyboard-only pass before 1.0. |
 | ACC-015 | Discriminatory functionality | LOW | NOT_APPLICABLE | NOT_APPLICABLE | No decisions about people. |  |
-| GIT-001 | Repository description | LOW | UNVERIFIED | UNVERIFIED | Not checked (no GitHub API access during audit). |  |
+| GIT-001 | Repository description | LOW | UNVERIFIED | PASS | Final: description set via GitHub CLI (2026-11-25): free, offline Windows app that compresses idle files reversibly. |  |
 | GIT-002 | Root licence | LOW | PASS | PASS | LICENSE. |  |
 | GIT-003 | Third-party notices | LOW | PASS | PASS | THIRD-PARTY-NOTICES.md. |  |
 | GIT-004 | README accuracy | LOW | PASS | PASS | Final README documents Simple/Advanced views and legal docs. |  |
 | GIT-005 | Contributor guidelines | LOW | PASS | PASS | CONTRIBUTING.md. |  |
 | GIT-006 | Contributor licensing | LOW | PASS | PASS | Inbound Apache-2.0 statement. |  |
-| GIT-007 | Security policy | MEDIUM | PARTIAL | PARTIAL | SECURITY.md; private reporting unverified (SEC-039). |  |
+| GIT-007 | Security policy | MEDIUM | PARTIAL | PASS | SECURITY.md; private vulnerability reporting enabled (SEC-039). |  |
 | GIT-008 | No sensitive files | LOW | PASS | PASS | Tooling files excluded via .git/info/exclude. |  |
 | GIT-009 | No sensitive history | LOW | PASS | PASS | History scan clean. |  |
 | GIT-010 | No personal info in commits | LOW | PASS | PASS | GitHub noreply address. |  |

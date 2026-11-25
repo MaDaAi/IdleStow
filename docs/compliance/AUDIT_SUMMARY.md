@@ -16,21 +16,21 @@ should be reviewed by an Ontario lawyer. No document or score can guarantee you 
 |---|---:|---:|---:|
 | Total checks | 311 | 311 | 0 |
 | Scored checks | 202 | 202 | 0 |
-| Passed | 152 | 163 | +11 |
+| Passed | 152 | 166 | +14 |
 | Failed | 11 | 1 | -10 |
-| Partial | 11 | 11 | 0 |
-| Unverified | 28 | 27 | -1 |
+| Partial | 11 | 9 | -2 |
+| Unverified | 28 | 26 | -2 |
 | Not applicable | 109 | 109 | 0 |
 | High findings | 4 | 1 | -3 |
-| Medium findings | 21 | 15 | -6 |
-| Low findings | 25 | 23 | -2 |
-| Verified pass rate | 75.2% | 80.7% | +5.4 pp |
+| Medium findings | 21 | 13 | -8 |
+| Low findings | 25 | 22 | -3 |
+| Verified pass rate | 75.2% | 82.2% | +6.9 pp |
 
-Expanded scope (3 new regulation checks, REG-001..003): 314 checks, 164 PASS, 203 scored, 80.8%.
+Expanded scope (3 new regulation checks, REG-001..003): 314 checks, 167 PASS, 203 scored, 82.3%.
 Counts come from `compare.py` run on `BASELINE_AUDIT.json` and `FINAL_AUDIT.json`.
 
-Resolved (12): LIC-004, LIC-036, LIC-037, PRIV-003, SEC-040, DIST-017, DIST-019, CON-007, CON-008, CON-011,
-CON-022, CON-025. Improved but not resolved: CON-005, LIC-014, LIC-026, GIT-021 (FAIL to PARTIAL).
+Resolved (15): LIC-004, LIC-036, LIC-037, PRIV-003, SEC-039, SEC-040, DIST-017, DIST-019, CON-007, CON-008,
+CON-011, CON-022, CON-025, GIT-001, GIT-007 (the last three after the owner's GitHub changes on 2026-11-25). Improved but not resolved: CON-005, LIC-014, LIC-026, GIT-021 (FAIL to PARTIAL).
 Regression (1): IP-010 is PARTIAL instead of PASS. The new logo was AI-generated (recorded 2026-11-25); the tool's terms are not recorded, and AI-generated images may not be copyrightable.
 
 ## Release recommendation: CONDITIONAL

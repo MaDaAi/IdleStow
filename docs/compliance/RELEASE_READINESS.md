@@ -13,7 +13,7 @@ Why not READY: these conditions are open.
 | 2 | GPL corresponding source for the bundled Java runtime and OpenJFX | LIC-014, LIC-026, GIT-021 | **Done for v0.1.0** (source archives attached, 2026-11-25). Repeat for every future release. |
 | 3 | AI-generated logo; tool terms not recorded | IP-010 | Check that the AI tool's terms allow public use of the image. |
 | 4 | Trademark not searched | BRAND-001..013 | CIPO and USPTO search for IDLESTOW before promotion. |
-| 5 | GitHub private vulnerability reporting not confirmed | SEC-039, GIT-007 | Enable it (Settings > Security). |
+| 5 | GitHub private vulnerability reporting | SEC-039, GIT-007 | **Done** (enabled, confirmed via the GitHub API on 2026-11-25). |
 | 6 | Unsigned binaries | DIST-010 | SHA-256 sums **published with v0.1.0**; signing is optional (costs money). |
 | 7 | Accessibility untested | ACC-* | Narrator and keyboard-only pass before 1.0. |
 

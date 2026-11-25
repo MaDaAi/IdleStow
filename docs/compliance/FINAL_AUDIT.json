@@ -1718,10 +1718,10 @@
    "category": "Cybersecurity",
    "criterion": "Vulnerability reporting",
    "severity": "MEDIUM",
-   "status": "PARTIAL",
+   "status": "PASS",
    "applicability": "applicable",
-   "evidence": "SECURITY.md exists; GitHub private vulnerability reporting not verified as enabled.",
-   "human_action": "Owner: Settings > Security > enable private vulnerability reporting.",
+   "evidence": "SECURITY.md exists. Baseline: private vulnerability reporting not verified. Final: GitHub API reports private vulnerability reporting enabled (2026-11-25).",
+   "human_action": "",
    "release_blocking": false
   },
   {
@@ -3159,9 +3159,9 @@
    "category": "GitHub and repository",
    "criterion": "Repository description",
    "severity": "LOW",
-   "status": "UNVERIFIED",
+   "status": "PASS",
    "applicability": "applicable",
-   "evidence": "Not checked (no GitHub API access during audit).",
+   "evidence": "Final: description set via GitHub CLI (2026-11-25): free, offline Windows app that compresses idle files reversibly.",
    "human_action": "",
    "release_blocking": false
   },
@@ -3225,9 +3225,9 @@
    "category": "GitHub and repository",
    "criterion": "Security policy",
    "severity": "MEDIUM",
-   "status": "PARTIAL",
+   "status": "PASS",
    "applicability": "applicable",
-   "evidence": "SECURITY.md; private reporting unverified (SEC-039).",
+   "evidence": "SECURITY.md; private vulnerability reporting enabled (SEC-039).",
    "human_action": "",
    "release_blocking": false
   },
@@ -3468,12 +3468,12 @@
  ],
  "release_recommendation": "CONDITIONAL",
  "status_totals": {
-  "PASS": 164,
+  "PASS": 167,
   "FAIL": 1,
-  "PARTIAL": 11,
-  "UNVERIFIED": 27,
+  "PARTIAL": 9,
+  "UNVERIFIED": 26,
   "NOT_APPLICABLE": 111
  },
  "scored_checks": 203,
- "verified_pass_rate": 80.8
+ "verified_pass_rate": 82.3
 }

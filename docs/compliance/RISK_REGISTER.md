@@ -1,6 +1,6 @@
 # Risk register
 
-Every FAIL, PARTIAL and UNVERIFIED check in `FINAL_AUDIT.json` (39 items), most severe first. None is
+Every FAIL, PARTIAL and UNVERIFIED check in `FINAL_AUDIT.json` (36 items), most severe first. None is
 CRITICAL. UNVERIFIED means not checked, not proven to be a problem.
 
 | ID | Severity | Status | Risk | Action |
@@ -13,14 +13,12 @@ CRITICAL. UNVERIFIED means not checked, not proven to be a problem.
 | BRAND-002 | MEDIUM | UNVERIFIED | US trademark search (USPTO) | Owner: USPTO search incl. dead/pending records. |
 | BRAND-004 | MEDIUM | UNVERIFIED | Existing software product names | - |
 | CON-009 | MEDIUM | UNVERIFIED | Mandatory consumer rights | Lawyer: confirm consumer-protection applicability and the savings clause. |
-| GIT-007 | MEDIUM | PARTIAL | Security policy | - |
 | GIT-021 | MEDIUM | PARTIAL | Licence compliance across packages | - |
 | IP-003 | MEDIUM | UNVERIFIED | Copied online snippets | Owner: optional similarity scan before a commercial release. |
 | IP-005 | MEDIUM | UNVERIFIED | AI-generated code provenance | Owner: line-by-line review of safety-critical code; lawyer if the project becomes commercial. |
 | IP-018 | MEDIUM | UNVERIFIED | Employer/university IP obligations | Owner: check any employment/school IP policy covers personal projects. |
 | LIC-014 | MEDIUM | PARTIAL | GPL obligations | Owner: attach Temurin and OpenJFX source archives to each GitHub release that ships binaries (or obtain advice on an alternative). |
 | LIC-026 | MEDIUM | PARTIAL | Corresponding source availability | As LIC-014. |
-| SEC-039 | MEDIUM | PARTIAL | Vulnerability reporting | Owner: Settings > Security > enable private vulnerability reporting. |
 | ACC-002 | LOW | UNVERIFIED | Applicable standard (WCAG 2.2 AA benchmark) | Owner: Narrator + keyboard-only pass before 1.0. |
 | ACC-003 | LOW | PARTIAL | Keyboard navigation | Owner: Narrator + keyboard-only pass before 1.0. |
 | ACC-004 | LOW | UNVERIFIED | Screen-reader compatibility | Owner: Narrator + keyboard-only pass before 1.0. |
@@ -39,7 +37,6 @@ CRITICAL. UNVERIFIED means not checked, not proven to be a problem.
 | BRAND-013 | LOW | UNVERIFIED | Passing-off/confusion | - |
 | DIST-010 | LOW | FAIL | Executable signing | Owner: code-signing certificate if budget allows; publish SHA-256 sums. |
 | DIST-011 | LOW | UNVERIFIED | Release checksums | Owner: code-signing certificate if budget allows; publish SHA-256 sums. |
-| GIT-001 | LOW | UNVERIFIED | Repository description | - |
 | GIT-013 | LOW | UNVERIFIED | Release artifact integrity | - |
 | GIT-018 | LOW | UNVERIFIED | Build reproducibility | - |
 | IP-010 | LOW | PARTIAL | Icon and logo rights | Owner: keep a note of which AI tool made it and check that its terms allow public use of the output. |
