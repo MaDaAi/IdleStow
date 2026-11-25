@@ -14,11 +14,9 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import tarfile
-import zipfile
 import zlib
 from dataclasses import dataclass
-from typing import Any, BinaryIO, Protocol
+from typing import TYPE_CHECKING, Any, BinaryIO, Protocol
 
 from .. import _optional
 from ..context import Context
@@ -26,12 +24,16 @@ from ..errors import Code, WorkerError
 from ..fsutil import CHUNK_SIZE, fs_path, lexists, remove_quiet
 from ..names import MANIFEST_MAX_BYTES, MANIFEST_NAME, is_unsafe_member_name, validate_entry_name
 
+if TYPE_CHECKING:
+    import tarfile
+    import zipfile
+
 MAX_INSPECT_MEMBERS = 1000
 MAX_LISTED_NAME_CHARS = 128
 TAR_OVERHEAD_SLACK = 4 * 1024 * 1024  # tar headers, padding and pax records around the data
 INSPECT_MAX_TAR_OUTPUT = 64 * 1024 * 1024 * 1024
-_TAR_REGULAR = (tarfile.REGTYPE, tarfile.AREGTYPE)
-_ZIP_METHODS = (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED)
+_TAR_REGULAR = (b"0", b"\x00")  # tarfile.REGTYPE, tarfile.AREGTYPE (tarfile is imported lazily)
+_ZIP_METHODS = (0, 8)  # zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED
 
 
 class Sink(Protocol):
@@ -121,6 +123,8 @@ def _check_zip_infos(infos: list[zipfile.ZipInfo], entry_name: str) -> None:
 
 
 def _scan_zip(path: str, entry_name: str, expected_size: int, ctx: Context, sink: Sink | None) -> ScanResult:
+    import zipfile  # lazy: keeps worker start-up fast
+
     try:
         with open(fs_path(path), "rb") as raw, zipfile.ZipFile(raw) as zf:
             infos = zf.infolist()
@@ -166,6 +170,8 @@ class _GuardedReader:
 
 
 def _open_tar_stream(raw: BinaryIO, ctx: Context, limit: int) -> tuple[Any, tarfile.TarFile]:
+    import tarfile  # lazy: keeps worker start-up fast
+
     zstd = _optional.zstandard()
     assert zstd is not None  # noqa: S101 - guarded by _require_format
     reader = zstd.ZstdDecompressor().stream_reader(raw)
@@ -187,6 +193,8 @@ def _zstd_error_types() -> tuple[type[BaseException], ...]:
 
 
 def _scan_tar(path: str, entry_name: str, expected_size: int, ctx: Context, sink: Sink | None) -> ScanResult:
+    import tarfile  # lazy: keeps worker start-up fast
+
     allowed = {entry_name, MANIFEST_NAME}
     seen: set[str] = set()
     result: tuple[str, int] | None = None
@@ -337,6 +345,8 @@ def _listed(name: str, size: int, compressed: int, unsafe: bool) -> dict[str, An
 
 
 def _inspect_zip(path: str, ctx: Context) -> dict[str, Any]:
+    import zipfile  # lazy: keeps worker start-up fast
+
     members: list[dict[str, Any]] = []
     manifest: dict[str, Any] | None = None
     try:
@@ -370,6 +380,8 @@ def _try_manifest(data: bytes) -> dict[str, Any] | None:
 
 
 def _inspect_tar(path: str, ctx: Context) -> dict[str, Any]:
+    import tarfile  # lazy: keeps worker start-up fast
+
     members: list[dict[str, Any]] = []
     manifest: dict[str, Any] | None = None
     try:

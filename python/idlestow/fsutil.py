@@ -5,9 +5,12 @@ from __future__ import annotations
 import ntpath
 import os
 import re
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from .errors import Code, WorkerError
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 CHUNK_SIZE = 1024 * 1024
 MAX_PATH_CHARS = 32_000
@@ -64,6 +67,8 @@ def lexists(path: str) -> bool:
 
 def is_root_or_home(path: Path) -> bool:
     """True if ``path`` is a filesystem root or the user's home directory itself."""
+    from pathlib import Path  # lazy: keeps worker start-up fast
+
     resolved = path.resolve()
     if resolved.parent == resolved:
         return True

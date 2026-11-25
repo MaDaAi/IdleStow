@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 import os
-import platform
 import re
+import sys
 from collections.abc import Collection
 from dataclasses import dataclass
 from typing import Any
@@ -33,11 +33,11 @@ class RequestError(Exception):
 
 
 def capabilities() -> dict[str, Any]:
-    zstd = _optional.zstd_available()
+    zstd = _optional.zstd_present()
     return {
         "formats": ["zip", "tar.zst"] if zstd else ["zip"],
         "zstd": zstd,
-        "psutil": _optional.psutil() is not None,
+        "psutil": _optional.psutil_present(),
     }
 
 
@@ -48,7 +48,7 @@ def ready_message() -> dict[str, Any]:
         "worker": WORKER_NAME,
         "version": __version__,
         "protocol": PROTOCOL_VERSION,
-        "python": platform.python_version(),
+        "python": sys.version.split()[0],
         "pid": os.getpid(),
         "capabilities": capabilities(),
     }
