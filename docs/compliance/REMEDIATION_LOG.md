@@ -17,5 +17,6 @@
 | CON-020 | `base.css` | Unticked checkboxes showed a faint tick app-wide (could read as pre-ticked consent); hyperlink text was painted like body text. Both fixed. |
 | IP-010 (2026-11-25) | `assets/branding/README.md` | Owner confirmed the logo was made with an AI image tool; origin and its copyright limits recorded. UNVERIFIED to PARTIAL. |
 | SEC-039, GIT-007, GIT-001 (2026-11-25) | GitHub settings | Owner enabled private vulnerability reporting (confirmed via API); repository description set. |
+| SEC-007, SEC-034, DIST-003, DIST-012, DIST-020, API-* (2026-11-25) | `core/update/*`, `app/update/*`, PRIVACY.md, TERMS.md | Opt-in in-app updater (HTTPS to GitHub only, checksum-verified, rollback, database backup); privacy notice and terms describe it; security review findings M1-M3 and L1-L5 fixed; live end-to-end update tested. |
 
 Rollback: each change is independent; `git checkout e80009b -- <file>` restores any file.

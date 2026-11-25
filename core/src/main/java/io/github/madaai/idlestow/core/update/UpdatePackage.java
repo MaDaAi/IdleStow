@@ -116,7 +116,9 @@ public final class UpdatePackage {
                 }
                 Path target = root.resolve(name).normalize();
                 if (!target.startsWith(root)) throw new IOException("Update package path escapes: " + name);
-                if (e.isDirectory()) {
+                // Windows PowerShell's Compress-Archive writes backslash separators, so ZipEntry.isDirectory()
+                // (which only looks for a trailing '/') cannot be used; decide on the normalized name.
+                if (name.endsWith("/")) {
                     Files.createDirectories(target);
                     continue;
                 }
@@ -166,7 +168,16 @@ public final class UpdatePackage {
     static void deleteTree(Path dir) throws IOException {
         if (dir == null || !Files.exists(dir, LinkOption.NOFOLLOW_LINKS)) return;
         try (Stream<Path> s = Files.walk(dir)) {
-            for (Path p : s.sorted(Comparator.reverseOrder()).toList()) Files.deleteIfExists(p);
+            for (Path p : s.sorted(Comparator.reverseOrder()).toList()) {
+                // jpackage marks its launchers (and the JVM its class-data archives) read-only; Windows refuses
+                // to delete read-only files, so clear the flag first. Links are never followed.
+                try {
+                    Files.setAttribute(p, "dos:readonly", false, LinkOption.NOFOLLOW_LINKS);
+                } catch (IOException | UnsupportedOperationException | IllegalArgumentException ignored) {
+                    // not a DOS filesystem, or already writable
+                }
+                Files.deleteIfExists(p);
+            }
         }
     }
 

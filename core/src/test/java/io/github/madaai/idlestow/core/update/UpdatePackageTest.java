@@ -146,6 +146,25 @@ class UpdatePackageTest {
         assertFalse(Files.exists(work().resolve(ZIP_NAME + ".part")));
     }
 
+    /** Regression: Windows PowerShell's Compress-Archive writes backslash names and directory entries. */
+    @Test
+    void backslashEntryNamesAndDirectoryEntriesFromCompressArchive() throws Exception {
+        Map<String, byte[]> e = new LinkedHashMap<>();
+        e.put("IdleStow/", new byte[0]);
+        e.put("IdleStow/runtime/", new byte[0]);
+        e.put("IdleStow/runtime/legal/", new byte[0]);
+        e.put("IdleStow/runtime/legal/java.base/LICENSE", "license".getBytes(StandardCharsets.UTF_8));
+        e.put("IdleStow/IdleStow.exe", "exe".getBytes(StandardCharsets.UTF_8));
+        e.put("IdleStow/app/idlestow.jar", jar("1.1.0"));
+        Map<String, byte[]> windows = new LinkedHashMap<>();
+        e.forEach((k, v) -> windows.put(k.replace('/', '\\'), v)); // as Compress-Archive writes them
+        byte[] z = zip(windows);
+        UpdatePackage.Staged s = prepare(transportFor(z, sha(z)), z.length);
+        assertTrue(Files.isDirectory(s.folder().resolve("runtime/legal")), "directory entries become directories");
+        assertTrue(Files.isRegularFile(s.folder().resolve("runtime/legal/java.base/LICENSE")));
+        assertTrue(Files.isRegularFile(s.folder().resolve("IdleStow.exe")));
+    }
+
     @Test
     void prepareReplacesEarlierMarkedStaging() throws Exception {
         Files.createDirectories(stage());
@@ -287,6 +306,18 @@ class UpdatePackageTest {
         Files.createDirectories(d.resolve("IdleStow/app"));
         Files.writeString(d.resolve(UpdatePackage.MARKER), "1.1.0");
         Files.writeString(d.resolve("IdleStow/app/x.jar"), "j");
+        UpdatePackage.clearStaging(d);
+        assertFalse(Files.exists(d));
+    }
+
+    /** Regression: jpackage launchers are read-only, which Windows refuses to delete unless the flag is cleared. */
+    @Test
+    void clearStagingDeletesReadOnlyFiles() throws Exception {
+        Path d = tmp.resolve("stage");
+        Files.createDirectories(d.resolve("IdleStow"));
+        Files.writeString(d.resolve(UpdatePackage.MARKER), "1.1.0");
+        Path exe = Files.writeString(d.resolve("IdleStow/IdleStow.exe"), "exe");
+        assertTrue(exe.toFile().setReadOnly());
         UpdatePackage.clearStaging(d);
         assertFalse(Files.exists(d));
     }

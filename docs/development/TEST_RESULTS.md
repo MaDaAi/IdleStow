@@ -134,3 +134,25 @@ Consequence: the default estimation sample was reduced from 4 MiB to 1 MiB (even
 
 Found and fixed: the local package had shipped logback 1.5.18 next to 1.5.38 because Maven never cleans
 `app/target/lib`; `package-windows.ps1` now clears it and refuses duplicate library versions.
+
+## 2026-11-25: 0.1.1 (in-app updater, performance work)
+
+| Command | Result |
+|---|---|
+| `./mvnw -B install -Dsurefire.excludedGroups=gui,benchmark` | exit 0; 507 Java tests, 0 failures, 0 errors, 3 skipped |
+| `cd python; python -m pytest -q` / `python -m ruff check .` | 171 passed / all checks passed |
+| Updater unit and architecture tests (`core/update/*Test`) | 76 passed, including `NetworkAccessArchitectureTest` (only `HttpsTransport` may use the network) |
+| `scripts/package-windows.ps1` (now runs the packaged `--smoke-test` itself) | package built, SMOKE OK; zip 70,731,907 bytes (0.1.0: 79,389,666) |
+| Swap script on fake app folders named `My Apps [x]` with read-only launchers: normal update, second update, failed move, unmarked `.previous` | all four behaved correctly (applied, replaced marked backup, rolled back, refused) |
+| Live end-to-end: packaged runtime checked GitHub as 0.1.1 (up to date) and as 0.0.9 (offered v0.1.0), downloaded 79,389,666 bytes, verified SHA-256, unpacked, swapped folders, restarted with `--data-dir` | passed (after two fixes below) |
+
+Found and fixed by the live test:
+- Zips made by Windows PowerShell's `Compress-Archive` use backslash entry names, so `ZipEntry.isDirectory()`
+  missed directory entries; the unpacker now decides on the normalized name (regression test added).
+- jpackage launchers and JVM class-data archives are read-only, which Windows refuses to delete; the updater now
+  clears the flag inside folders it owns (regression test added).
+
+Performance (single runs on the development PC, synthetic data; details in the helpers' reports and
+`docs/development/build-and-packaging.md`): 100k-file index + analysis 40.7 s to 28.3 s; unchanged rescan
+47.7 s to 23.5 s; window start about 2.2 s to 1.8 s; worker start about 260 ms to 175 ms; packaged smoke start
+3.35 s to 2.22 s (median).

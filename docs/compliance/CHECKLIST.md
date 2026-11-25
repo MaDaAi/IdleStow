@@ -105,13 +105,13 @@ Generated from `FINAL_AUDIT.json`. Baseline status is from `BASELINE_AUDIT.json`
 | PRIV-002 | Data-flow mapping | MEDIUM | PASS | PASS | Threat model data flows; docs/compliance/DATA_FLOW_MAP.md (final). |  |
 | PRIV-003 | Privacy policy accuracy | HIGH | PARTIAL | PASS | Baseline: effective date 2026-11-25 was in the future; no statement on children, sensors, change process; no-network claim not runtime-tested. Final: fixed, marked as draft; no-network claim checked by source search and by sampling the app's and worker's TCP/UDP endpoints during a smoke run (none). |  |
 | PRIV-004 | Collection disclosures | MEDIUM | PASS | PASS | PRIVACY.md lists stored data and purposes; Settings > Privacy repeats it. |  |
-| PRIV-005 | Meaningful consent | MEDIUM | PASS | PASS | Folders are chosen explicitly by the user; nothing preselected. |  |
+| PRIV-005 | Meaningful consent | MEDIUM | PASS | PASS | Folders are chosen explicitly. Update checks are asked for on first run, with no default answer, and can be turned off in Settings. |  |
 | PRIV-007 | Data minimization | LOW | PASS | PASS | Metadata only; file contents read transiently for estimates/checksums/archives. |  |
 | PRIV-008 | Purpose limitation | LOW | PASS | PASS | Data used only for indexing, recommendations and recovery. |  |
 | PRIV-009 | Retention schedules | LOW | PASS | PASS | Local, user-controlled; logs size-limited and rotating; documented. |  |
 | PRIV-010 | Deletion procedures | LOW | PASS | PASS | Clear index, clear logs, delete data folder (documented). |  |
 | PRIV-014 | Consent withdrawal | LOW | PASS | PASS | Removing a folder stops indexing and deletes its index entries. |  |
-| PRIV-015 | Telemetry controls | HIGH | PASS | PASS | No telemetry code: no java.net/HttpClient/socket use in core/platform/app, no urllib/requests/socket in python/idlestow (grep 2026-11-24). |  |
+| PRIV-015 | Telemetry controls | HIGH | PASS | PASS | No telemetry. The only network code is the updater (NetworkAccessArchitectureTest enforces it); it sends no personal data beyond what any HTTPS request carries (IP address), disclosed in PRIVACY.md. |  |
 | PRIV-029 | File-system access | MEDIUM | PASS | PASS | Authorizer limits reads/changes to authorized roots; protected system paths refused. |  |
 | PRIV-030 | Background collection | LOW | PASS | PASS | Background scanning is opt-in (default off) and documented. |  |
 | PRIV-034 | Privacy contact | LOW | PASS | PASS | GitHub issues/private reporting named in PRIVACY.md. |  |
@@ -123,7 +123,7 @@ Generated from `FINAL_AUDIT.json`. Baseline status is from `BASELINE_AUDIT.json`
 | SEC-004 | Secrets in history | MEDIUM | PASS | PASS | Full-history scan 0 findings (security audit 2026-11). |  |
 | SEC-005 | Secrets in artifacts | MEDIUM | PASS | PASS | Project has no credentials to leak; package contents reviewed. |  |
 | SEC-006 | Credential storage | LOW | NOT_APPLICABLE | NOT_APPLICABLE | No credentials. |  |
-| SEC-007 | Encryption in transit | LOW | NOT_APPLICABLE | NOT_APPLICABLE | No network traffic. |  |
+| SEC-007 | Encryption in transit | MEDIUM | NOT_APPLICABLE | PASS | HTTPS only (HttpsTransport); every request and redirect hop must be an https GitHub host; JDK default certificate validation. Updater (0.1.1): opt-in on first run, off switch in Settings; one HTTPS GET per day to api.github.com; downloads only after the user clicks Install. |  |
 | SEC-008 | Encryption at rest | LOW | NOT_APPLICABLE | NOT_APPLICABLE | Local metadata under the user's profile; OS account protection; encryption not warranted for a local index. |  |
 | SEC-009 | Authentication | LOW | NOT_APPLICABLE | NOT_APPLICABLE | No accounts. |  |
 | SEC-010 | Authorization enforcement | MEDIUM | PASS | PASS | Authorizer + plan-bound approvals; regression tests. |  |
@@ -141,7 +141,7 @@ Generated from `FINAL_AUDIT.json`. Baseline status is from `BASELINE_AUDIT.json`
 | SEC-022 | Remote code execution | MEDIUM | PASS | PASS | No remote input surface. |  |
 | SEC-023 | Dependency vulnerabilities | MEDIUM | PASS | PASS | OSV query 2026-11-24: 0 advisories for runtime deps after logback 1.5.38 (see LIC-037 for the stale package). |  |
 | SEC-024 | Unsupported dependencies | MEDIUM | PASS | PASS | All maintained, current versions. |  |
-| SEC-025 | Insecure endpoints | LOW | NOT_APPLICABLE | NOT_APPLICABLE | No endpoints. |  |
+| SEC-025 | Insecure endpoints | LOW | NOT_APPLICABLE | PASS | The only endpoints contacted are api.github.com, github.com and GitHub's release asset hosts (allowlist, checked per redirect hop). No listening ports. |  |
 | SEC-026 | Unsafe defaults | MEDIUM | PASS | PASS | Ask mode, background off, autonomy needs explicit confirmation. |  |
 | SEC-027 | Session management | LOW | NOT_APPLICABLE | NOT_APPLICABLE | No sessions. |  |
 | SEC-028 | Password hashing | LOW | NOT_APPLICABLE | NOT_APPLICABLE | No passwords. |  |
@@ -150,10 +150,10 @@ Generated from `FINAL_AUDIT.json`. Baseline status is from `BASELINE_AUDIT.json`
 | SEC-031 | Temporary files | MEDIUM | PASS | PASS | IdleStow-owned temp files next to targets, cleaned. |  |
 | SEC-032 | Symlink/junction attacks | MEDIUM | PASS | PASS | Reparse points never modified; identity revalidation. |  |
 | SEC-033 | Race conditions | MEDIUM | PASS | PASS | Per-path and per-record locks; identity re-check before change. |  |
-| SEC-034 | Update mechanism | LOW | NOT_APPLICABLE | NOT_APPLICABLE | No auto-update. |  |
+| SEC-034 | Update mechanism | MEDIUM | NOT_APPLICABLE | PARTIAL | Update: HTTPS + SHA256SUMS.txt from the same release, exact asset URL match, version must be newer, jar Implementation-Version check, zip-slip/size limits, marker-guarded deletion, DB backup and automatic rollback; security review 2026-11-25 (no critical/high; mediums fixed); live end-to-end update from GitHub tested. Not code-signed, so a compromised GitHub account could ship a malicious update. | Owner: consider release signing (key kept offline) and enable GitHub 2FA. |
 | SEC-035 | Supply-chain integrity | MEDIUM | PASS | PASS | Pinned SHA-256 for Maven wrapper, Temurin, CPython, zstandard; Actions pinned to SHAs. |  |
 | SEC-036 | Build artifact integrity | MEDIUM | PASS | PASS | Inputs checksum-verified; zip hashed. |  |
-| SEC-037 | TLS validation | LOW | NOT_APPLICABLE | NOT_APPLICABLE | No TLS clients in app. |  |
+| SEC-037 | TLS validation | LOW | NOT_APPLICABLE | PASS | java.net.http with default TrustManager and hostname verification; no custom TLS settings. |  |
 | SEC-038 | Security logging | MEDIUM | PASS | PASS | Operation journal and history. |  |
 | SEC-042 | Admin permissions | MEDIUM | PASS | PASS | None required. |  |
 | SEC-043 | Debug interfaces | MEDIUM | PASS | PASS | No debug ports; --smoke-test/--self-test are local and refuse non-empty dirs. |  |
@@ -210,9 +210,9 @@ Generated from `FINAL_AUDIT.json`. Baseline status is from `BASELINE_AUDIT.json`
 | AI-018 | AI risk classification | LOW | NOT_APPLICABLE | NOT_APPLICABLE | The product contains no AI model, AI service or AI-driven decision; its recommendations are rule-based (policy engine). AI was used only as a development tool. |  |
 | AI-019 | Training-data licensing | LOW | NOT_APPLICABLE | NOT_APPLICABLE | The product contains no AI model, AI service or AI-driven decision; its recommendations are rule-based (policy engine). AI was used only as a development tool. |  |
 | AI-020 | Automated decisions about people | LOW | NOT_APPLICABLE | NOT_APPLICABLE | The product contains no AI model, AI service or AI-driven decision; its recommendations are rule-based (policy engine). AI was used only as a development tool. |  |
-| API-001 | API terms compliance | LOW | NOT_APPLICABLE | NOT_APPLICABLE | IdleStow integrates with no external API, OAuth provider or online platform; GitHub hosting is assessed under GIT-020. |  |
+| API-001 | API terms compliance | LOW | NOT_APPLICABLE | PASS | GitHub REST API used unauthenticated for public release metadata with a User-Agent header, as GitHub requires. |  |
 | API-002 | Commercial-use restrictions | LOW | NOT_APPLICABLE | NOT_APPLICABLE | IdleStow integrates with no external API, OAuth provider or online platform; GitHub hosting is assessed under GIT-020. |  |
-| API-003 | Rate limits | LOW | NOT_APPLICABLE | NOT_APPLICABLE | IdleStow integrates with no external API, OAuth provider or online platform; GitHub hosting is assessed under GIT-020. |  |
+| API-003 | Rate limits | LOW | NOT_APPLICABLE | PASS | At most one automatic request per day (plus manual checks), far below GitHub's unauthenticated limit of 60 requests per hour. |  |
 | API-004 | OAuth configuration | LOW | NOT_APPLICABLE | NOT_APPLICABLE | IdleStow integrates with no external API, OAuth provider or online platform; GitHub hosting is assessed under GIT-020. |  |
 | API-005 | Minimum OAuth scopes | LOW | NOT_APPLICABLE | NOT_APPLICABLE | IdleStow integrates with no external API, OAuth provider or online platform; GitHub hosting is assessed under GIT-020. |  |
 | API-006 | OAuth consent accuracy | LOW | NOT_APPLICABLE | NOT_APPLICABLE | IdleStow integrates with no external API, OAuth provider or online platform; GitHub hosting is assessed under GIT-020. |  |
@@ -225,14 +225,14 @@ Generated from `FINAL_AUDIT.json`. Baseline status is from `BASELINE_AUDIT.json`
 | API-013 | Third-party branding | LOW | NOT_APPLICABLE | NOT_APPLICABLE | IdleStow integrates with no external API, OAuth provider or online platform; GitHub hosting is assessed under GIT-020. |  |
 | API-014 | Revocation of access | LOW | NOT_APPLICABLE | NOT_APPLICABLE | IdleStow integrates with no external API, OAuth provider or online platform; GitHub hosting is assessed under GIT-020. |  |
 | API-015 | Token lifecycle | LOW | NOT_APPLICABLE | NOT_APPLICABLE | IdleStow integrates with no external API, OAuth provider or online platform; GitHub hosting is assessed under GIT-020. |  |
-| API-016 | Platform developer policies | LOW | NOT_APPLICABLE | NOT_APPLICABLE | IdleStow integrates with no external API, OAuth provider or online platform; GitHub hosting is assessed under GIT-020. |  |
+| API-016 | Platform developer policies | LOW | NOT_APPLICABLE | PASS | Only public release metadata and the owner's own release files are read. |  |
 | API-017 | API key exposure | LOW | NOT_APPLICABLE | NOT_APPLICABLE | IdleStow integrates with no external API, OAuth provider or online platform; GitHub hosting is assessed under GIT-020. |  |
 | API-018 | Bundled credentials | LOW | NOT_APPLICABLE | NOT_APPLICABLE | IdleStow integrates with no external API, OAuth provider or online platform; GitHub hosting is assessed under GIT-020. |  |
 | API-019 | Third-party data deletion | LOW | NOT_APPLICABLE | NOT_APPLICABLE | IdleStow integrates with no external API, OAuth provider or online platform; GitHub hosting is assessed under GIT-020. |  |
 | API-020 | Platform distribution requirements | LOW | NOT_APPLICABLE | NOT_APPLICABLE | IdleStow integrates with no external API, OAuth provider or online platform; GitHub hosting is assessed under GIT-020. |  |
 | DIST-001 | Transparent installer behaviour | LOW | PASS | PASS | Portable zip; no installer; extracts and runs. |  |
 | DIST-002 | Installation consent requirements | LOW | NOT_APPLICABLE | NOT_APPLICABLE | CASL s.8 covers installing a program on another person's computer in the course of commercial activity; users install IdleStow themselves and it is non-commercial. |  |
-| DIST-003 | Automatic update consent | LOW | NOT_APPLICABLE | NOT_APPLICABLE | No automatic updates. |  |
+| DIST-003 | Automatic update consent | MEDIUM | NOT_APPLICABLE | PASS | First-run question with no pre-selected answer; anything but Yes means no automatic checks; Settings toggle; installing always needs Install update + Restart now. |  |
 | DIST-004 | Background process disclosures | LOW | PASS | PASS | Tray and background behaviour documented; final: also in Terms dialog and guide. |  |
 | DIST-005 | Startup behaviour | LOW | PASS | PASS | Start-at-login is opt-in. |  |
 | DIST-006 | Uninstall | LOW | PASS | PASS | Documented in README and guide. |  |
@@ -241,7 +241,7 @@ Generated from `FINAL_AUDIT.json`. Baseline status is from `BASELINE_AUDIT.json`
 | DIST-009 | No bundled unwanted software | LOW | PASS | PASS | Only required runtimes. |  |
 | DIST-010 | Executable signing | LOW | FAIL | FAIL | IdleStow.exe and zip unsigned; SmartScreen warns. | Owner: code-signing certificate if budget allows; publish SHA-256 sums. |
 | DIST-011 | Release checksums | LOW | UNVERIFIED | UNVERIFIED | Package script hashes the zip locally; no release published yet. | Owner: code-signing certificate if budget allows; publish SHA-256 sums. |
-| DIST-012 | Secure update delivery | LOW | NOT_APPLICABLE | NOT_APPLICABLE | No updates. |  |
+| DIST-012 | Secure update delivery | MEDIUM | NOT_APPLICABLE | PARTIAL | See SEC-034: HTTPS + published checksums, no code signing. | As SEC-034. |
 | DIST-013 | Package repository requirements | LOW | NOT_APPLICABLE | NOT_APPLICABLE | Not in package repositories. |  |
 | DIST-014 | App-store policies | LOW | NOT_APPLICABLE | NOT_APPLICABLE | Not in app stores. |  |
 | DIST-015 | Platform distribution agreements | LOW | NOT_APPLICABLE | NOT_APPLICABLE | GitHub only (GIT-020). |  |
@@ -249,7 +249,7 @@ Generated from `FINAL_AUDIT.json`. Baseline status is from `BASELINE_AUDIT.json`
 | DIST-017 | Release-artifact contents | MEDIUM | FAIL | PASS | Baseline: stale duplicate logback jars in package (LIC-037). Final: fixed and verified. |  |
 | DIST-018 | Supported OS disclosures | LOW | PASS | PASS | README and platform-compatibility.md. |  |
 | DIST-019 | Support lifecycle | LOW | UNVERIFIED | PASS | Final: TERMS.md section 6 states there is no promise of support or updates. |  |
-| DIST-020 | Update rollback | LOW | NOT_APPLICABLE | NOT_APPLICABLE | No update mechanism; portable versions can be swapped manually. |  |
+| DIST-020 | Update rollback | LOW | NOT_APPLICABLE | PASS | Previous version kept as <app>.previous (marker file); swap script restores it automatically on failure; database copied (VACUUM INTO) before each update; manual rollback documented. Swap script tested on fake folders (4 scenarios incl. failure and read-only files) and live. |  |
 | CON-001 | Accurate marketing claims | LOW | PASS | PASS | README states limits; estimates labelled. |  |
 | CON-002 | Accurate feature descriptions | LOW | PASS | PASS | Docs match implementation; final docs describe Simple view and tray. |  |
 | CON-003 | Non-deceptive performance claims | LOW | PASS | PASS | Savings shown as estimates; benchmarks recorded, not promised. |  |

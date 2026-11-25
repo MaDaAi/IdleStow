@@ -15,19 +15,24 @@ should be reviewed by an Ontario lawyer. No document or score can guarantee you 
 | Status | Before | After | Change |
 |---|---:|---:|---:|
 | Total checks | 311 | 311 | 0 |
-| Scored checks | 202 | 202 | 0 |
-| Passed | 152 | 166 | +14 |
+| Scored checks | 202 | 212 | +10 |
+| Passed | 152 | 174 | +22 |
 | Failed | 11 | 1 | -10 |
-| Partial | 11 | 9 | -2 |
+| Partial | 11 | 11 | 0 |
 | Unverified | 28 | 26 | -2 |
-| Not applicable | 109 | 109 | 0 |
+| Not applicable | 109 | 99 | -10 |
 | High findings | 4 | 1 | -3 |
-| Medium findings | 21 | 13 | -8 |
+| Medium findings | 21 | 15 | -6 |
 | Low findings | 25 | 22 | -3 |
-| Verified pass rate | 75.2% | 82.2% | +6.9 pp |
+| Verified pass rate | 75.2% | 82.1% | +6.8 pp |
 
-Expanded scope (3 new regulation checks, REG-001..003): 314 checks, 167 PASS, 203 scored, 82.3%.
+Expanded scope (3 new regulation checks, REG-001..003): 314 checks, 175 PASS, 213 scored, 82.2%.
 Counts come from `compare.py` run on `BASELINE_AUDIT.json` and `FINAL_AUDIT.json`.
+
+**Applicability changes (0.1.1 updater, 2026-11-25):** 10 checks that were NOT APPLICABLE because IdleStow had no
+network use are now assessed: SEC-007, SEC-025, SEC-037, DIST-003, DIST-020, API-001, API-003, API-016 pass;
+SEC-034 and DIST-012 (update mechanism and delivery) are PARTIAL because releases are not code-signed. This is why
+the scored count rose from 202 to 212.
 
 Resolved (15): LIC-004, LIC-036, LIC-037, PRIV-003, SEC-039, SEC-040, DIST-017, DIST-019, CON-007, CON-008,
 CON-011, CON-022, CON-025, GIT-001, GIT-007 (the last three after the owner's GitHub changes on 2026-11-25). Improved but not resolved: CON-005, LIC-014, LIC-026, GIT-021 (FAIL to PARTIAL).

@@ -145,6 +145,18 @@ public final class WindowsUpdateInstaller {
                 } else { Start-Process -FilePath $exe }
             }
             $Marker = '.idlestow-previous'
+            # Deletes a folder this updater owns. jpackage launchers and JVM class-data archives are read-only,
+            # which Windows refuses to delete, so the flag is cleared first. Reparse points are not followed.
+            function Remove-OwnedFolder([string]$dir) {
+                $d = New-Object System.IO.DirectoryInfo($dir)
+                if (-not $d.Exists) { return }
+                foreach ($f in $d.EnumerateFileSystemInfos('*', [System.IO.SearchOption]::AllDirectories)) {
+                    if ($f.Attributes -band [System.IO.FileAttributes]::ReadOnly) {
+                        $f.Attributes = $f.Attributes -band (-bnot [System.IO.FileAttributes]::ReadOnly)
+                    }
+                }
+                [System.IO.Directory]::Delete($dir, $true)
+            }
             $moved = $false
             try {
                 $p = Get-Process -Id $WaitPid -ErrorAction SilentlyContinue
@@ -156,7 +168,7 @@ public final class WindowsUpdateInstaller {
                 if (Test-Path -LiteralPath $BackupDir) {
                     # Only delete a backup this updater made (marker file); never a folder the user created.
                     if (Test-Path -LiteralPath (Join-Path $BackupDir $Marker)) {
-                        [System.IO.Directory]::Delete($BackupDir, $true)
+                        Remove-OwnedFolder $BackupDir
                     } else {
                         Write-UpdateLog "$BackupDir exists and was not made by the updater; update not applied"
                         Start-IdleStow
@@ -169,7 +181,7 @@ public final class WindowsUpdateInstaller {
                 }
                 Set-Content -LiteralPath (Join-Path $BackupDir $Marker) -Value 'Previous IdleStow version, kept by the updater.'
                 [System.IO.Directory]::Move($NewDir, $AppDir)
-                try { [System.IO.Directory]::Delete($StageRoot, $true) } catch { Write-UpdateLog ('Could not remove ' + $StageRoot + ': ' + $_) }
+                try { Remove-OwnedFolder $StageRoot } catch { Write-UpdateLog ('Could not remove ' + $StageRoot + ': ' + $_) }
                 Write-UpdateLog "Update applied; previous version kept in $BackupDir"
                 Start-IdleStow
             } catch {

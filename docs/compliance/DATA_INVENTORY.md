@@ -11,6 +11,8 @@ Everything below stays on the user's computer. Nothing is sent to the developer 
 | Recovery manifests (JSON) | data folder | Paths | Recovery without the database | As above |
 | Retained originals | `<monitored folder>\.idlestow\retained\` | The user's own files | Undo of archive replacement | Until the user chooses *Reclaim space* in Recovery; never removed automatically |
 | UI state, including Terms acceptance version and time | data folder `ui-state.json` | No | Window layout, Simple/Advanced choice, terms record | Deleted with the data folder |
+| Update preference, last check time, skipped version | data folder `ui-state.json` | No | The opt-in update check | Deleted with the data folder |
+| Update scratch files: download in progress, swap script and its log, database copy made before an update | data folder `updates` | Paths | Installing an update safely and rolling back | Download removed after unpacking; the rest stays until the data folder is deleted |
 | Diagnostic logs | data folder `logs` | Paths (never contents) | Troubleshooting | Size-limited rotation; *Clear logs* |
 
 Checked against the source: database migrations, `UiPrefs`, `Legal`, `OperationExecutor`, logback configuration.
