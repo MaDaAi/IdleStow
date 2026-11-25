@@ -25,6 +25,11 @@ public final class Launcher {
     static volatile Path dataDir;
     static volatile InstanceLock instanceLock;
     static volatile int exitCode;
+    /**
+     * The engine, started on a background thread while the JavaFX toolkit initialises. Only set when the Terms of
+     * Use are already accepted (nothing may open the database before that) or in the smoke test.
+     */
+    static volatile java.util.concurrent.CompletableFuture<AppContext> enginePreload;
 
     private Launcher() { }
 
@@ -113,6 +118,21 @@ public final class Launcher {
         launchArgs = args;
         dataDir = data;
         exitCode = 0;
+        io.github.madaai.idlestow.app.util.StartupTimer.mark("launcher ready");
+        if (args.smokeTest() || io.github.madaai.idlestow.app.ui.Legal.accepted(
+                io.github.madaai.idlestow.app.util.UiPrefs.forDataDir(data))) {
+            var future = new java.util.concurrent.CompletableFuture<AppContext>();
+            enginePreload = future;
+            Thread t = new Thread(() -> {
+                try {
+                    future.complete(Bootstrap.create(args, data));
+                } catch (Throwable e) {
+                    future.completeExceptionally(e);
+                }
+            }, "idlestow-engine-start");
+            t.setDaemon(true);
+            t.start();
+        }
         try {
             Application.launch(IdleStowApp.class);
         } catch (Throwable t) { // includes UnsupportedOperationException (no display) and linkage errors

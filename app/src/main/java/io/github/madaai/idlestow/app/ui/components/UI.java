@@ -70,8 +70,12 @@ public final class UI {
     }
 
     public static void tooltip(Control c, String text) {
-        if (text == null || text.isBlank()) c.setTooltip(null);
-        else c.setTooltip(tip(text));
+        Tooltip old = c.getTooltip();
+        if (text == null || text.isBlank()) {
+            if (old != null) c.setTooltip(null);
+        } else if (old == null || !text.equals(old.getText())) {
+            c.setTooltip(tip(text)); // unchanged text keeps the existing tooltip (this is called from polling code)
+        }
     }
 
     public static HBox hbox(double spacing, Node... children) {

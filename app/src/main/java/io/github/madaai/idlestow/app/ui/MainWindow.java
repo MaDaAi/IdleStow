@@ -75,11 +75,11 @@ public final class MainWindow implements Navigator {
     private final StackPane viewHost = new StackPane();
     private final Label titleLabel = UI.label("", "h1");
     private final HBox toolbarHost = new HBox(8);
-    private final StatusBar statusBar;
+    private StatusBar statusBar; // built with the Advanced chrome, which is created on first use
     private final Label toast = new Label();
     private final PauseTransition toastTimer = new PauseTransition(Duration.seconds(4.5));
     private final Button pauseButton = UI.button("Pause", Icons.PAUSE, "flat");
-    private final Coalescer statusCoalescer;
+    private Coalescer statusCoalescer;
     private final Coalescer jobWatchCoalescer;
     private final Map<Long, JobState> knownJobs = new HashMap<>();
     private boolean jobsSeeded;
@@ -88,6 +88,9 @@ public final class MainWindow implements Navigator {
     private BorderPane advancedRoot;
     private SimpleHome simple;
     private boolean simpleMode;
+    private volatile boolean windowShowing;
+    private volatile boolean statusLive;
+    private boolean started;
 
     public MainWindow(AppContext ctx, Stage stage) {
         this.ctx = ctx;
@@ -101,14 +104,7 @@ public final class MainWindow implements Navigator {
         factories.put(ViewId.RECOVERY, RecoveryView::new);
         factories.put(ViewId.SETTINGS, SettingsView::new);
 
-        statusBar = new StatusBar(ctx);
-        statusCoalescer = new Coalescer(400, Platform::runLater, statusBar::refresh);
         jobWatchCoalescer = new Coalescer(700, Platform::runLater, this::watchJobs);
-
-        BorderPane root = new BorderPane();
-        root.setLeft(buildSidebar());
-        VBox centerBox = new VBox(buildToolbar(), buildBanners(), viewHost);
-        VBox.setVgrow(viewHost, Priority.ALWAYS);
         toast.getStyleClass().add("toast");
         toast.setVisible(false);
         toast.setMouseTransparent(true);
@@ -116,11 +112,7 @@ public final class MainWindow implements Navigator {
         toast.setMaxWidth(640);
         StackPane.setAlignment(toast, Pos.BOTTOM_CENTER);
         StackPane.setMargin(toast, new Insets(0, 0, 18, 0));
-        root.setCenter(centerBox);
-        root.setBottom(statusBar);
-        advancedRoot = root;
         toastTimer.setOnFinished(e -> toast.setVisible(false));
-        host.getChildren().add(root);
         StackPane top = new StackPane(host, toast);
 
         scene = new Scene(top, 1280, 800);
@@ -131,9 +123,12 @@ public final class MainWindow implements Navigator {
         stage.setMinWidth(980);
         stage.setMinHeight(620);
         stage.getIcons().addAll(Branding.windowIcons());
+        stage.showingProperty().addListener((o, was, now) -> {
+            windowShowing = now;
+            updateStatusLive();
+        });
         ctx.engine().addListener(this::onEngineEvent);
         applyThemeFromSettings();
-        updatePauseButton();
     }
 
     public Scene scene() {
@@ -141,6 +136,30 @@ public final class MainWindow implements Navigator {
     }
 
     // ------------------------------------------------------------------ construction
+
+    /** Builds the Advanced chrome (sidebar, toolbar, status bar) the first time it is needed. */
+    private void ensureAdvanced() {
+        if (advancedRoot != null) return;
+        statusBar = new StatusBar(ctx);
+        statusCoalescer = new Coalescer(400, Platform::runLater, statusBar::refresh);
+        BorderPane root = new BorderPane();
+        root.setLeft(buildSidebar());
+        VBox centerBox = new VBox(buildToolbar(), buildBanners(), viewHost);
+        VBox.setVgrow(viewHost, Priority.ALWAYS);
+        root.setCenter(centerBox);
+        root.setBottom(statusBar);
+        advancedRoot = root;
+        updatePauseButton();
+        if (started) statusBar.start();
+        updateStatusLive();
+    }
+
+    /** The status bar only polls while the window is showing the Advanced view. */
+    private void updateStatusLive() {
+        boolean live = windowShowing && !simpleMode && statusBar != null;
+        statusLive = live;
+        if (statusBar != null) statusBar.setActive(live);
+    }
 
     private Node buildSidebar() {
         Node logo = Branding.logo(34);
@@ -263,20 +282,22 @@ public final class MainWindow implements Navigator {
             if (old != null) old.onHidden();
         }
         simpleMode = true;
+        updateStatusLive();
         host.getChildren().setAll(simple.node());
         ctx.prefs().put("uiMode", "simple");
         simple.onShown();
     }
 
-    private void leaveSimple() {
+    private void leaveSimple(ViewId target) {
         if (!simpleMode) return;
         simpleMode = false;
         if (simple != null) simple.onHidden();
+        ensureAdvanced();
         host.getChildren().setAll(advancedRoot);
+        updateStatusLive();
         ctx.prefs().put("uiMode", "advanced");
-        if (current != null) {
-            BaseView v = view(current);
-            v.onShown();
+        if (current != null && current == target) {
+            view(current).onShown(); // show(target) returns early for the current view, so resume it here
         }
     }
 
@@ -289,7 +310,10 @@ public final class MainWindow implements Navigator {
     @Override
     public void show(ViewId id) {
         if (simpleMode) {
-            leaveSimple();
+            leaveSimple(id);
+        } else if (advancedRoot == null) {
+            ensureAdvanced();
+            host.getChildren().setAll(advancedRoot);
         }
         if (id == current) {
             return;
@@ -405,7 +429,7 @@ public final class MainWindow implements Navigator {
             snapshot = new ArrayList<>(views.values());
         }
         for (BaseView v : snapshot) v.onEngineEvent(e);
-        statusCoalescer.request();
+        if (statusLive) statusCoalescer.request();
         if (e == IdleStowEngine.Event.JOBS) jobWatchCoalescer.request();
         if (e == IdleStowEngine.Event.SETTINGS || e == IdleStowEngine.Event.STATUS) {
             Platform.runLater(() -> {
@@ -449,12 +473,16 @@ public final class MainWindow implements Navigator {
     // ------------------------------------------------------------------ window state
 
     public void start() {
-        statusBar.start();
+        windowShowing = stage.isShowing();
+        started = true;
+        updateStatusLive();
+        if (statusBar != null) statusBar.start();
         watchJobs();
     }
 
     public void stop() {
-        statusBar.stop();
+        started = false;
+        if (statusBar != null) statusBar.stop();
     }
 
     public void restoreGeometry() {

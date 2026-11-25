@@ -39,6 +39,8 @@ public final class StatusBar extends HBox {
     private final Label attentionLabel = item();
     private final Timeline poll;
     private boolean inFlight;
+    private boolean started;
+    private boolean active = true;
     private Snap last = new Snap(List.of(), 0, false);
 
     public StatusBar(AppContext ctx) {
@@ -51,6 +53,7 @@ public final class StatusBar extends HBox {
         scanProgress.setVisible(false);
         scanProgress.setManaged(false);
         attentionLabel.getStyleClass().add("warn-text");
+        attentionLabel.setPadding(new Insets(0, 8, 0, 0));
         getChildren().addAll(group(scanDot, scanLabel, scanProgress), sep(), group(jobDot, jobLabel), sep(),
                 group(autoDot, autoLabel), sep(), group(bgDot, bgLabel), UI.spacer(), attentionLabel,
                 group(workerDot, workerLabel));
@@ -64,12 +67,29 @@ public final class StatusBar extends HBox {
     }
 
     public void start() {
-        refresh();
-        poll.play();
+        started = true;
+        if (active) {
+            refresh();
+            poll.play();
+        }
     }
 
     public void stop() {
+        started = false;
         poll.stop();
+    }
+
+    /** The bar only polls while the window is actually showing (not while hidden to the tray). */
+    public void setActive(boolean on) {
+        if (active == on) return;
+        active = on;
+        if (!started) return;
+        if (on) {
+            refresh();
+            poll.play();
+        } else {
+            poll.stop();
+        }
     }
 
     private static Region dot() {
@@ -101,6 +121,8 @@ public final class StatusBar extends HBox {
     }
 
     private static void setDot(Region dot, String kind) {
+        if (kind.equals(dot.getProperties().get("kind"))) return; // avoid a CSS pass when nothing changed
+        dot.getProperties().put("kind", kind);
         dot.getStyleClass().removeIf(s -> s.startsWith("status-dot-"));
         dot.getStyleClass().add("status-dot-" + kind);
     }
@@ -184,6 +206,5 @@ public final class StatusBar extends HBox {
         UI.tooltip(workerLabel, ctx.workerNote());
 
         attentionLabel.setText(last.attention() > 0 ? last.attention() + " recovery item(s) need attention" : "");
-        attentionLabel.setPadding(new Insets(0, 8, 0, 0));
     }
 }

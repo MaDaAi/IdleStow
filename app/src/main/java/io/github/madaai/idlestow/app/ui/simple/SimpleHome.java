@@ -47,13 +47,9 @@ import java.util.function.Consumer;
 public final class SimpleHome {
 
     /** What the screen shows; loaded in the background. */
-    record Data(List<MonitoredRoot> roots, List<Candidate> nativeCandidates, long otherPending, long reclaimed,
+    record Data(List<MonitoredRoot> roots, long nativeCount, long nativeSavings, long otherPending, long reclaimed,
                 long indexedFiles, long activeJobs, long attention, boolean scanning, long scannedFiles,
-                boolean paused) {
-        long savings() {
-            return nativeCandidates.stream().mapToLong(Candidate::estSavings).sum();
-        }
-    }
+                boolean paused, long inactivityDays) { }
 
     private final AppContext ctx;
     private final Runnable switchToAdvanced;
@@ -64,6 +60,7 @@ public final class SimpleHome {
     private final Timeline poll;
     private boolean loading;
     private boolean visible;
+    private Data shown;
 
     public SimpleHome(AppContext ctx, Runnable switchToAdvanced) {
         this.ctx = ctx;
@@ -130,6 +127,7 @@ public final class SimpleHome {
         return Background.supply(this::load).handle((d, err) -> {
             loading = false;
             if (err != null) {
+                shown = null;
                 body.getChildren().setAll(UI.banner(Icons.WARNING, "Could not load: " + Background.message(err),
                         "error", UI.button("Try again", Icons.REFRESH, this::refresh)));
             } else {
@@ -141,13 +139,13 @@ public final class SimpleHome {
 
     private Data load() throws Exception {
         IdleStowEngine e = ctx.engine();
-        List<Candidate> pending = e.recommendations(List.of(CandidateStatus.PENDING), null, null,
-                CandidateRepository.Sort.SAVINGS, 20_000);
-        List<Candidate> nat = pending.stream().filter(c -> c.method() == Method.NATIVE).toList();
+        // One aggregate query instead of loading the candidate rows; they are loaded only when the user acts.
+        CandidateRepository.MethodSummary nat = e.pendingSummary(Method.NATIVE);
+        long otherPending = Math.max(0, e.pendingRecommendationCount() - nat.count());
         IdleStowEngine.ScanStatus scan = e.scanStatus();
-        return new Data(e.roots(), nat, pending.size() - nat.size(), e.queries().currentReclaimed(),
+        return new Data(e.roots(), nat.count(), nat.estSavings(), otherPending, e.queries().currentReclaimed(),
                 e.queries().totals().files(), e.jobs().countActive(), e.recoveryRecords().countNeedingAttention(),
-                scan.running(), scan.files(), e.paused());
+                scan.running(), scan.files(), e.paused(), e.settings().inactivityDays());
     }
 
     // ------------------------------------------------------------------ rendering
@@ -157,6 +155,8 @@ public final class SimpleHome {
         boolean busy = d.scanning() || d.activeJobs() > 0;
         if (busy && visible) poll.play();
         else poll.stop();
+        if (d.equals(shown) && !body.getChildren().isEmpty() ) return; // nothing changed
+        shown = d;
         body.getChildren().setAll(hero(d), stats(d), folders(d), safetyNote(d));
     }
 
@@ -185,13 +185,13 @@ public final class SimpleHome {
             text = String.format("%,d files checked so far. Nothing is changed while IdleStow looks.",
                     d.scannedFiles());
             extra = progress();
-        } else if (!d.nativeCandidates().isEmpty()) {
+        } else if (d.nativeCount() > 0) {
             icon = Icons.BOLT;
-            title = "You can free up about " + Fmt.size(d.savings());
-            text = Fmt.plural(d.nativeCandidates().size(), "file") + (d.nativeCandidates().size() == 1
+            title = "You can free up about " + Fmt.size(d.nativeSavings());
+            text = Fmt.plural(d.nativeCount(), "file") + (d.nativeCount() == 1
                     ? " hasn't" : " haven't") + " been used in a while. IdleStow can"
                     + " shrink them. They stay in the same place and open just like before.";
-            Button go = big("Free up space", Icons.COMPRESS, () -> freeUp(d));
+            Button go = big("Free up space", Icons.COMPRESS, this::freeUp);
             if (e.readOnly()) {
                 go.setDisable(true);
                 text += "\n\nIdleStow was started in read-only mode, so it won't change anything.";
@@ -211,7 +211,7 @@ public final class SimpleHome {
             icon = Icons.CHECK;
             title = "All tidy";
             text = "Nothing needs shrinking right now. IdleStow will suggest files once they've been idle for "
-                    + Fmt.plural(e.settings().inactivityDays(), "day") + ".";
+                    + Fmt.plural(d.inactivityDays(), "day") + ".";
             if (d.otherPending() > 0) {
                 text += " There " + (d.otherPending() == 1 ? "is 1 other suggestion" : "are " + d.otherPending()
                         + " other suggestions") + " (archives) in the Advanced view.";
@@ -326,11 +326,28 @@ public final class SimpleHome {
         });
     }
 
-    private void freeUp(Data d) {
-        List<Candidate> list = d.nativeCandidates();
-        if (list.isEmpty()) return;
+    private void freeUp() {
+        // The candidate rows are loaded only now, when the user asks to act on them.
+        Background.supply(() -> ctx.engine().recommendations(List.of(CandidateStatus.PENDING), null, null,
+                CandidateRepository.Sort.SAVINGS, 20_000).stream().filter(c -> c.method() == Method.NATIVE)
+                .toList()).whenComplete((list, err) -> {
+            if (err != null) {
+                Dialogs.error(ctx.nav().window(), "Could not load the files", Background.message(err));
+                return;
+            }
+            confirmAndApprove(list);
+        });
+    }
+
+    private void confirmAndApprove(List<Candidate> list) {
+        if (list.isEmpty()) {
+            toast("Nothing to shrink right now.");
+            refresh();
+            return;
+        }
+        long savings = list.stream().mapToLong(Candidate::estSavings).sum();
         String text = "IdleStow will shrink " + Fmt.plural(list.size(), "file") + " you haven't used in a while,"
-                + " saving about " + Fmt.size(d.savings()) + " (an estimate).\n\n"
+                + " saving about " + Fmt.size(savings) + " (an estimate).\n\n"
                 + "- Files stay in the same place and open normally.\n"
                 + "- Each file is checked again just before it changes, and verified afterwards.\n"
                 + "- No file is deleted, and you can undo it any time.";
